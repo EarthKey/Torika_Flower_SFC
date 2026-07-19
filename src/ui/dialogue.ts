@@ -33,7 +33,7 @@ export function mountDialogue() {
   windowEl.id = 'dialogue'
   windowEl.style.cssText = `
     position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-    width: min(880px, 92vw); min-height: 150px;
+    width: min(880px, 92vw); min-height: 200px;
     display: none; align-items: flex-end; gap: 16px;
     background: rgba(88, 24, 40, 0.86);
     border: 3px solid #e8b4c0; border-radius: 10px;
@@ -49,7 +49,7 @@ export function mountDialogue() {
 
   portraitEl = document.createElement('img')
   portraitEl.style.cssText = `
-    height: 150px; image-rendering: pixelated; flex-shrink: 0;
+    height: 200px; image-rendering: pixelated; flex-shrink: 0;
     filter: drop-shadow(0 2px 4px rgba(0,0,0,0.45));
   `
 

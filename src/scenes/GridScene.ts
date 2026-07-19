@@ -248,12 +248,22 @@ export abstract class GridScene extends Phaser.Scene {
     }
   }
 
-  // トリカの隣（上下左右1マス）にいるNPCを返す
-  private adjacentNpc() {
-    return this.npcs.find((n) => Math.abs(n.row - this.playerRow) + Math.abs(n.col - this.playerCol) === 1)
+  // 現在の向き（facingDir/facingFlip）を1マス分の移動量に変換する。
+  // 話しかけ判定（隣接＋正対）で「どちらを向いているか」を使うための共通ロジック
+  private facingDelta(): { dr: number; dc: number } {
+    if (this.facingDir === 'front') return { dr: 1, dc: 0 }
+    if (this.facingDir === 'back') return { dr: -1, dc: 0 }
+    return { dr: 0, dc: this.facingFlip ? 1 : -1 }
   }
 
-  // NPCクリック時の話しかけ判定。離れているときは案内だけ出す
+  // トリカが正対している（隣接かつその方向を向いている）NPCを返す。2026-07-19本人指定:
+  // 隣に立つだけでなく、体をそちらへ向けたときだけ話しかけられるようにする
+  private adjacentNpc() {
+    const { dr, dc } = this.facingDelta()
+    return this.npcs.find((n) => n.row === this.playerRow + dr && n.col === this.playerCol + dc)
+  }
+
+  // NPCクリック時の話しかけ判定。離れているときと、隣接していても向きが違うときで案内を分ける
   private tryTalkTo(chara: string) {
     if (isDialogueOpen()) return
     const npc = this.npcs.find((n) => n.chara === chara)
@@ -261,6 +271,11 @@ export abstract class GridScene extends Phaser.Scene {
     const dist = Math.abs(npc.row - this.playerRow) + Math.abs(npc.col - this.playerCol)
     if (dist !== 1) {
       showMessage('もっと近くまで行って話しかけよう')
+      return
+    }
+    const { dr, dc } = this.facingDelta()
+    if (npc.row !== this.playerRow + dr || npc.col !== this.playerCol + dc) {
+      showMessage('そちらを向いてから話しかけよう')
       return
     }
     this.startTalk(npc)
