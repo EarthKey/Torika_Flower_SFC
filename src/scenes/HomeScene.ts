@@ -149,8 +149,9 @@ export class HomeScene extends GridScene {
       '11,21': { exit: { targetScene: 'WorkshopScene', spawnCol: DOOR_ENTRY.col, spawnRow: DOOR_ENTRY.row } },
       // 施錠された季節の門の前（門前の道の突き当たり）
       '3,25': { data: { message: '季節の門は固く閉ざされている……。次の季節へ進むには、まだ何かが足りないようだ' } },
-      // 花占いのポスト（§9-11・里の右下の道の突き当たり。ポストの絵は1マス右の(18-19,27)に重ねる）
-      '19,26': { data: { kind: 'hanauranai', message: '花占いのポストがある。Spaceキーで「今日の花占い」' } },
+      // 花占いのポスト（§9-11）: ポスト本体は道の突き当たり(19,26)に立ち、通行不可（onReadyでblockCell）。
+      // 調べるマスはその手前(18,26)
+      '18,26': { data: { kind: 'hanauranai', message: '花占いのポストがある。Spaceキーで「今日の花占い」' } },
     }
     for (const [plotId, pos] of Object.entries(PLOT_LAYOUT)) {
       const state = plots[plotId]
@@ -189,9 +190,10 @@ export class HomeScene extends GridScene {
       this.addNpc(npc.chara, npc.row, npc.col)
     }
 
-    // 花占いのポスト（§9-11）: 右下の道の突き当たり(19,26)の1マス右の茂み側に置く。
+    // 花占いのポスト（§9-11）: 右下の道の突き当たり(19,26)に立てて通行不可にする（2026-07-19実機評で1マス左へ）。
     // 本人生成のuranai.webp16コマ（花飾りのゆれ＋水面の花びら）を90msループで再生
-    const post = this.add.image(27 * 32 + 16, 18 * 32 + 26, 'hanauranai_post_1')
+    this.blockCell(19, 26)
+    const post = this.add.image(26 * 32 + 16, 18 * 32 + 26, 'hanauranai_post_1')
     this.fitImage(post, 68)
     post.setDepth(5)
     let postFrame = 1
