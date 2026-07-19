@@ -55,8 +55,9 @@ export class BootScene extends Phaser.Scene {
         this.load.image(`${k}_stage${s}`, `assets/plants/${k}_stage${s}.png`)
       }
     }
-    // 演出素材: ワープ魔法陣4色＋調合マーク（各16コマ、scripts/extract-effects.mjs が生成）
-    for (const key of ['warp_pink', 'warp_blue', 'warp_yellow', 'warp_green', 'mark_compound']) {
+    // 演出素材: ワープ魔法陣4色＋調合マーク（各16コマ、scripts/extract-effects.mjs が生成）と
+    // 花占いポスト（§9-11・16コマゆらぎ、scripts/extract-uranai.mjs が生成）
+    for (const key of ['warp_pink', 'warp_blue', 'warp_yellow', 'warp_green', 'mark_compound', 'hanauranai_post']) {
       for (let f = 1; f <= 16; f++) {
         this.load.image(`${key}_${f}`, `assets/effects/${key}_${f}.png`)
       }

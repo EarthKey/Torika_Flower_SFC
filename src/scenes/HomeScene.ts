@@ -132,31 +132,6 @@ export class HomeScene extends GridScene {
     })
   }
 
-  // 花占いポストの仮テクスチャ（§9-11）。屋根付きの木の柱＋花飾り＋花びらを浮かべた水盤。
-  // 本人制作のイラスト（assets_prompts/オブジェクト_花占いポスト.md）ができたら差し替える
-  private ensureFortunePostTexture() {
-    if (this.textures.exists('hanauranai_post')) return
-    const g = this.make.graphics({ x: 0, y: 0 }, false)
-    g.fillStyle(0x4a3320, 1)
-    g.fillTriangle(4, 16, 52, 16, 28, 2) // 屋根
-    g.fillStyle(0x7a5230, 1)
-    g.fillRect(25, 16, 6, 26) // 柱
-    g.fillStyle(0xe87aa0, 1)
-    g.fillCircle(28, 27, 8) // 花飾り
-    g.fillStyle(0xfff0f4, 1)
-    g.fillCircle(28, 27, 3)
-    g.fillStyle(0x8a6a3a, 1)
-    g.fillEllipse(28, 47, 32, 13) // 水盤（木の鉢）
-    g.fillStyle(0x9ecfe8, 1)
-    g.fillEllipse(28, 46, 25, 9) // 水面
-    g.fillStyle(0xf7b7cd, 1)
-    g.fillCircle(22, 45, 2) // 浮かべた花びら
-    g.fillCircle(30, 47, 2)
-    g.fillCircle(35, 44, 2)
-    g.generateTexture('hanauranai_post', 56, 56)
-    g.destroy()
-  }
-
   constructor() {
     super('HomeScene', { type: 'image', textureKey: 'bg_home', cols: COLS, rows: ROWS, walkMask: WALK_MASK }, 14, 18)
   }
@@ -214,9 +189,20 @@ export class HomeScene extends GridScene {
       this.addNpc(npc.chara, npc.row, npc.col)
     }
 
-    // 花占いのポスト（§9-11）: 右下の道の突き当たり(19,26)の1マス右の茂み側に置く
-    this.ensureFortunePostTexture()
-    this.add.image(27 * 32 + 16, 18 * 32 + 26, 'hanauranai_post').setDepth(5)
+    // 花占いのポスト（§9-11）: 右下の道の突き当たり(19,26)の1マス右の茂み側に置く。
+    // 本人生成のuranai.webp16コマ（花飾りのゆれ＋水面の花びら）を90msループで再生
+    const post = this.add.image(27 * 32 + 16, 18 * 32 + 26, 'hanauranai_post_1')
+    this.fitImage(post, 68)
+    post.setDepth(5)
+    let postFrame = 1
+    this.time.addEvent({
+      delay: 90,
+      loop: true,
+      callback: () => {
+        postFrame = (postFrame % 16) + 1
+        post.setTexture(`hanauranai_post_${postFrame}`) // 全16コマ同寸で切り出し済みのためスケール再計算は不要
+      },
+    })
 
     updateHud()
     showMessage('矢印キー/WASDで移動。上の鳥居から種の聖域へ、工房の入口で調合部屋へ。畑の手前でSpaceキーを押して種植え/収穫')
