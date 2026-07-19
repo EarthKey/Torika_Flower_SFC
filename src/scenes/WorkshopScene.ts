@@ -247,9 +247,12 @@ export class WorkshopScene extends GridScene {
   private compound(recipe: Recipe) {
     const ok = tryCompound(recipe)
     if (ok) {
-      showToast(`${recipe.name}（${recipe.ruby}） ×1`, recipe.icon)
-      showMessage(`${recipe.name}（${recipe.ruby}）が完成した！`)
-      this.playCompoundMovie(() => this.playCompleteEffect())
+      // タイムライン: ムービー（スキップ可）→ 完成表示（トースト＋メッセージ＋発光演出）の順（2026-07-19実機評）
+      this.playCompoundMovie(() => {
+        showToast(`${recipe.name}（${recipe.ruby}） ×1`, recipe.icon)
+        showMessage(`${recipe.name}（${recipe.ruby}）が完成した！`)
+        this.playCompleteEffect()
+      })
     } else {
       const need = (Object.entries(recipe.cost) as [SeedKind, number][])
         .map(([k, n]) => `${KIND_LABELS_RUBY[k]}×${n}`)
@@ -278,9 +281,12 @@ export class WorkshopScene extends GridScene {
       .rectangle(cx, cy, 30 * 32, 22 * 32, 0x000000, 0.65)
       .setDepth(29)
       .setInteractive() // 暗幕がクリックを受け、背後のマスへの移動予約を防ぐ
-    const frame = this.add.rectangle(cx, cy, 608 + 8, 464 + 8).setStrokeStyle(4, 0xc9a24a).setDepth(30)
+    // 表示は実寸の50%（2026-07-19実機評: 大きすぎて画質の粗さが目立つため縮小）
+    const vw = 304
+    const vh = 232
+    const frame = this.add.rectangle(cx, cy, vw + 8, vh + 8).setStrokeStyle(4, 0xc9a24a).setDepth(30)
     const vid = this.add.video(cx, cy, 'compound_movie').setDepth(30)
-    vid.setDisplaySize(608, 464)
+    vid.setDisplaySize(vw, vh)
     vid.play(false)
 
     let finished = false // スキップ直後にVIDEO_COMPLETEが重複発火しても二重実行しない
