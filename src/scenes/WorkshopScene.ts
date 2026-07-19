@@ -249,7 +249,7 @@ export class WorkshopScene extends GridScene {
     if (ok) {
       showToast(`${recipe.name}（${recipe.ruby}） ×1`, recipe.icon)
       showMessage(`${recipe.name}（${recipe.ruby}）が完成した！`)
-      this.playCompleteEffect()
+      this.playCompoundMovie(() => this.playCompleteEffect())
     } else {
       const need = (Object.entries(recipe.cost) as [SeedKind, number][])
         .map(([k, n]) => `${KIND_LABELS_RUBY[k]}×${n}`)
@@ -267,6 +267,35 @@ export class WorkshopScene extends GridScene {
       if (!img) continue
       img.setAlpha(gameState.medals[kind] > 0 ? 1 : 0.3)
     }
+  }
+
+  // 調合成功のカットインムービー（PV素材再利用の試験導入・2026-07-19）。
+  // 暗幕＋中央にムービーを1回再生。クリックでスキップ可。終了後にonEnd（発光演出）へつなぐ
+  private playCompoundMovie(onEnd: () => void) {
+    const cx = (30 * 32) / 2
+    const cy = (22 * 32) / 2
+    const backdrop = this.add
+      .rectangle(cx, cy, 30 * 32, 22 * 32, 0x000000, 0.65)
+      .setDepth(29)
+      .setInteractive() // 暗幕がクリックを受け、背後のマスへの移動予約を防ぐ
+    const frame = this.add.rectangle(cx, cy, 608 + 8, 464 + 8).setStrokeStyle(4, 0xc9a24a).setDepth(30)
+    const vid = this.add.video(cx, cy, 'compound_movie').setDepth(30)
+    vid.setDisplaySize(608, 464)
+    vid.play(false)
+
+    let finished = false // スキップ直後にVIDEO_COMPLETEが重複発火しても二重実行しない
+    const finish = () => {
+      if (finished) return
+      finished = true
+      vid.destroy()
+      frame.destroy()
+      backdrop.destroy()
+      onEnd()
+    }
+    vid.on(Phaser.GameObjects.Events.VIDEO_COMPLETE, finish)
+    backdrop.on('pointerdown', finish)
+    vid.setInteractive()
+    vid.on('pointerdown', finish)
   }
 
   // 調合成功: 発光スティックが完成薬置き場に現れ、ふわっと浮かんで消える（所持品へ入る）

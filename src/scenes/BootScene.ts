@@ -63,6 +63,10 @@ export class BootScene extends Phaser.Scene {
       }
     }
 
+    // 調合成功のカットインムービー（PV素材・動画31.mp4の再利用。冒頭のUIモック0.3秒と
+    // 四辺の透かしをカット・音声なし。2026-07-19試験導入）
+    this.load.video('compound_movie', 'assets/effects/compound_movie.mp4', true)
+
     // 会話データ（顔グラ画像はDOM側で直接<img>参照するためPhaserには読み込まない）
     this.load.json('dialogues', 'data/dialogues.json')
 
