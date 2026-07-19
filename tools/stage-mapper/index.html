@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>ステージ当たり判定マッピングツール</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", "Hiragino Sans", sans-serif;
+    background: #1c1a18;
+    color: #f2e6c8;
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+  #canvasWrap {
+    flex: 1;
+    overflow: auto;
+    background: #0d0c0b;
+    padding: 16px;
+  }
+  #stage {
+    position: relative;
+    cursor: crosshair;
+  }
+  #bgCanvas, #overlayCanvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    image-rendering: pixelated;
+  }
+  #sidebar {
+    width: 340px;
+    flex-shrink: 0;
+    background: #24211d;
+    border-left: 1px solid #4a3f30;
+    padding: 14px;
+    overflow-y: auto;
+  }
+  h1 { font-size: 15px; margin: 0 0 12px; color: #ffd97a; }
+  h2 { font-size: 13px; margin: 18px 0 6px; color: #ffd97a; border-bottom: 1px solid #4a3f30; padding-bottom: 4px; }
+  label { display: block; font-size: 12px; margin: 8px 0 3px; color: #cbb98a; }
+  input[type=number], input[type=text], select, textarea {
+    width: 100%;
+    background: #14120f;
+    border: 1px solid #4a3f30;
+    color: #f2e6c8;
+    padding: 5px 6px;
+    font-size: 12px;
+    border-radius: 3px;
+  }
+  textarea { font-family: monospace; resize: vertical; }
+  button {
+    background: #3a3226;
+    border: 1px solid #8a6a3a;
+    color: #f2e6c8;
+    padding: 6px 10px;
+    font-size: 12px;
+    border-radius: 3px;
+    cursor: pointer;
+    margin: 3px 3px 3px 0;
+  }
+  button:hover { background: #4a3f2c; }
+  button.active { background: #8a6a3a; color: #1c1a18; font-weight: bold; }
+  .row { display: flex; gap: 6px; }
+  .row > * { flex: 1; }
+  .modeBtn { display: flex; align-items: center; gap: 6px; width: 100%; margin-bottom: 4px; }
+  .swatch { width: 14px; height: 14px; border-radius: 2px; border: 1px solid #000; display: inline-block; }
+  .hint { font-size: 11px; color: #9a8a6a; line-height: 1.5; }
+  .coord { font-size: 12px; color: #ffd97a; }
+  #metaPanel { border: 1px solid #8a6a3a; padding: 8px; border-radius: 4px; margin-top: 8px; background: #1a1712; display: none; }
+  #metaPanel.show { display: block; }
+</style>
+</head>
+<body>
+
+<div id="canvasWrap">
+  <div id="stage">
+    <canvas id="bgCanvas"></canvas>
+    <canvas id="overlayCanvas"></canvas>
+  </div>
+</div>
+
+<div id="sidebar">
+  <h1>ステージ当たり判定マッピングツール</h1>
+  <div class="hint">
+    イラストを読み込んでグリッドを重ね、マスごとに「歩行可否」「ワープ」「アクション」を塗って、
+    そのままゲーム側（GridScene）に貼れる形式で書き出す専用ツール。
+  </div>
+
+  <h2>1. 画像読み込み</h2>
+  <input type="file" id="imgInput" accept="image/*" />
+  <label>画像の不透明度</label>
+  <input type="range" id="opacity" min="0.2" max="1" step="0.05" value="1" />
+
+  <h2>2. グリッド設定</h2>
+  <div class="row">
+    <div>
+      <label>タイルサイズ(px)</label>
+      <input type="number" id="tileSize" value="32" min="4" />
+    </div>
+    <div>
+      <label>列数(cols)</label>
+      <input type="number" id="cols" value="30" min="1" />
+    </div>
+    <div>
+      <label>行数(rows)</label>
+      <input type="number" id="rows" value="22" min="1" />
+    </div>
+  </div>
+  <button id="rebuildGrid">グリッドを再生成（塗りは初期化されます）</button>
+
+  <h2>3. 塗りモード</h2>
+  <button class="modeBtn" data-mode="blocked"><span class="swatch" style="background:#2255dd"></span>青 = 通行不可（初期値）</button>
+  <button class="modeBtn" data-mode="walkable"><span class="swatch" style="background:#dd3333"></span>赤 = 歩行可能</button>
+  <button class="modeBtn" data-mode="warp"><span class="swatch" style="background:#2fae4e"></span>緑 = ワープ（シーン遷移）</button>
+  <button class="modeBtn" data-mode="action"><span class="swatch" style="background:#b25fe0"></span>紫 = アクション（会話/採取/机など）</button>
+  <button class="modeBtn" data-mode="erase"><span class="swatch" style="background:transparent;border-style:dashed"></span>消しゴム（塗りを消して初期状態＝通行不可に戻す）</button>
+  <div class="hint">
+    青・赤はドラッグで連続に塗れます。緑・紫は1マスずつクリックし、下の詳細パネルで内容を入力してください。
+    同じマスをもう一度クリックすると詳細を編集できます。
+  </div>
+
+  <div class="coord" id="coordLabel">カーソル: -</div>
+  <div id="metaPanel">
+    <div class="coord" id="metaCoord"></div>
+    <div id="warpFields" style="display:none">
+      <label>遷移先シーン名 (targetScene)</label>
+      <input type="text" id="metaScene" placeholder="例: SeedFieldScene" />
+      <div class="row">
+        <div><label>出現col</label><input type="number" id="metaSpawnCol" /></div>
+        <div><label>出現row</label><input type="number" id="metaSpawnRow" /></div>
+      </div>
+    </div>
+    <div id="actionFields" style="display:none">
+      <label>タグ (data.kind / data.tag)</label>
+      <input type="text" id="metaTag" placeholder="例: workshopTable, plot_kanzou" />
+      <label>メッセージ（任意）</label>
+      <input type="text" id="metaMessage" placeholder="例: 季節の門は固く閉ざされている……" />
+    </div>
+    <button id="metaSave">このマスに保存</button>
+    <button id="metaClear">このマスの詳細を削除</button>
+  </div>
+
+  <h2>4. 書き出し</h2>
+  <label>保存ファイル名（画像を読み込むと自動で同じ名前になる。手入力での変更も可）</label>
+  <input type="text" id="exportName" value="stage-map" placeholder="例: saisyu" />
+  <button id="exportJson">JSONダウンロード</button>
+  <button id="copyMask">mask配列をコピー</button>
+  <button id="copySpecs">specsオブジェクトをコピー</button>
+  <label style="margin-top:10px">読み込み（再開用）</label>
+  <input type="file" id="jsonInput" accept="application/json" />
+  <textarea id="preview" rows="10" readonly></textarea>
+</div>
+
+<script>
+const bgCanvas = document.getElementById('bgCanvas');
+const overlayCanvas = document.getElementById('overlayCanvas');
+const bgCtx = bgCanvas.getContext('2d');
+const ovCtx = overlayCanvas.getContext('2d');
+const stageDiv = document.getElementById('stage');
+
+let tileSize = 32;
+let cols = 30;
+let rows = 22;
+let img = null;
+
+// cellType: '#' blocked (default) | '.' walkable | 'W' warp | 'A' action
+let grid = [];
+// specs keyed by "row,col" -> { exit:{targetScene,spawnCol,spawnRow} } or { data:{...} }
+let specs = {};
+
+let mode = 'blocked';
+let painting = false;
+let selectedCell = null; // {row,col} currently open in meta panel
+
+function initGrid(keepSpecs) {
+  grid = Array.from({ length: rows }, () => Array(cols).fill('#'));
+  if (!keepSpecs) specs = {};
+  resizeCanvases();
+  redraw();
+}
+
+function resizeCanvases() {
+  const w = cols * tileSize;
+  const h = rows * tileSize;
+  bgCanvas.width = w; bgCanvas.height = h;
+  overlayCanvas.width = w; overlayCanvas.height = h;
+  stageDiv.style.width = w + 'px';
+  stageDiv.style.height = h + 'px';
+}
+
+function drawImage() {
+  bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+  if (img) {
+    bgCtx.globalAlpha = parseFloat(document.getElementById('opacity').value);
+    bgCtx.drawImage(img, 0, 0, bgCanvas.width, bgCanvas.height);
+    bgCtx.globalAlpha = 1;
+  }
+}
+
+const COLORS = {
+  '#': 'rgba(34,85,221,0.45)',
+  '.': 'rgba(221,51,51,0.45)',
+  'W': 'rgba(47,174,78,0.55)',
+  'A': 'rgba(178,95,224,0.55)',
+};
+
+function redraw() {
+  drawImage();
+  ovCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const t = grid[r][c];
+      ovCtx.fillStyle = COLORS[t] || COLORS['#'];
+      ovCtx.fillRect(c * tileSize, r * tileSize, tileSize, tileSize);
+      ovCtx.strokeStyle = 'rgba(255,255,255,0.15)';
+      ovCtx.strokeRect(c * tileSize, r * tileSize, tileSize, tileSize);
+    }
+  }
+  if (selectedCell) {
+    ovCtx.strokeStyle = '#ffd97a';
+    ovCtx.lineWidth = 2;
+    ovCtx.strokeRect(selectedCell.col * tileSize + 1, selectedCell.row * tileSize + 1, tileSize - 2, tileSize - 2);
+    ovCtx.lineWidth = 1;
+  }
+}
+
+function cellFromEvent(e) {
+  const rect = overlayCanvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  const col = Math.floor(x / tileSize);
+  const row = Math.floor(y / tileSize);
+  if (row < 0 || row >= rows || col < 0 || col >= cols) return null;
+  return { row, col };
+}
+
+function paintCell(row, col) {
+  const key = `${row},${col}`;
+  if (mode === 'blocked') { grid[row][col] = '#'; delete specs[key]; }
+  else if (mode === 'walkable') { grid[row][col] = '.'; delete specs[key]; }
+  // 消しゴム: 塗りとspecsを消して初期状態（'#'=通行不可・青）に戻す
+  else if (mode === 'erase') { grid[row][col] = '#'; delete specs[key]; }
+  else if (mode === 'warp') {
+    grid[row][col] = 'W';
+    // 色を塗った時点で仮のspecsエントリを必ず作る（保存ボタンの押し忘れでデータが消えないように）
+    if (!specs[key] || !specs[key].exit) specs[key] = { exit: { targetScene: '', spawnCol: 0, spawnRow: 0 } };
+    openMeta(row, col);
+  }
+  else if (mode === 'action') {
+    grid[row][col] = 'A';
+    if (!specs[key] || !specs[key].data) specs[key] = { data: {} };
+    openMeta(row, col);
+  }
+  redraw();
+  updatePreview();
+}
+
+overlayCanvas.addEventListener('mousedown', (e) => {
+  const cell = cellFromEvent(e);
+  if (!cell) return;
+  if (mode === 'warp' || mode === 'action') {
+    paintCell(cell.row, cell.col);
+    return;
+  }
+  painting = true;
+  paintCell(cell.row, cell.col);
+});
+overlayCanvas.addEventListener('mousemove', (e) => {
+  const cell = cellFromEvent(e);
+  document.getElementById('coordLabel').textContent = cell ? `カーソル: row=${cell.row}, col=${cell.col}` : 'カーソル: -';
+  if (painting && cell && (mode === 'blocked' || mode === 'walkable' || mode === 'erase')) {
+    paintCell(cell.row, cell.col);
+  }
+});
+window.addEventListener('mouseup', () => { painting = false; });
+
+// 既存のワープ/アクションマスを再クリックすると詳細を編集できる
+overlayCanvas.addEventListener('click', (e) => {
+  const cell = cellFromEvent(e);
+  if (!cell) return;
+  const key = `${cell.row},${cell.col}`;
+  if (specs[key] && mode !== 'blocked' && mode !== 'walkable' && mode !== 'erase') {
+    openMeta(cell.row, cell.col);
+  }
+});
+
+function openMeta(row, col) {
+  selectedCell = { row, col };
+  const key = `${row},${col}`;
+  const panel = document.getElementById('metaPanel');
+  panel.classList.add('show');
+  document.getElementById('metaCoord').textContent = `編集中: row=${row}, col=${col}`;
+  const isWarp = grid[row][col] === 'W';
+  document.getElementById('warpFields').style.display = isWarp ? 'block' : 'none';
+  document.getElementById('actionFields').style.display = isWarp ? 'none' : 'block';
+
+  const existing = specs[key];
+  if (isWarp) {
+    const exit = existing?.exit || {};
+    document.getElementById('metaScene').value = exit.targetScene || '';
+    document.getElementById('metaSpawnCol').value = exit.spawnCol ?? '';
+    document.getElementById('metaSpawnRow').value = exit.spawnRow ?? '';
+  } else {
+    const data = existing?.data || {};
+    document.getElementById('metaTag').value = data.kind || data.tag || '';
+    document.getElementById('metaMessage').value = data.message || '';
+  }
+  redraw();
+}
+
+document.getElementById('metaSave').addEventListener('click', () => {
+  if (!selectedCell) return;
+  const { row, col } = selectedCell;
+  const key = `${row},${col}`;
+  const isWarp = grid[row][col] === 'W';
+  if (isWarp) {
+    specs[key] = {
+      exit: {
+        targetScene: document.getElementById('metaScene').value.trim(),
+        spawnCol: Number(document.getElementById('metaSpawnCol').value) || 0,
+        spawnRow: Number(document.getElementById('metaSpawnRow').value) || 0,
+      },
+    };
+  } else {
+    const tag = document.getElementById('metaTag').value.trim();
+    const message = document.getElementById('metaMessage').value.trim();
+    const data = {};
+    if (tag) data.kind = tag;
+    if (message) data.message = message;
+    specs[key] = { data };
+  }
+  updatePreview();
+});
+
+document.getElementById('metaClear').addEventListener('click', () => {
+  if (!selectedCell) return;
+  const { row, col } = selectedCell;
+  const key = `${row},${col}`;
+  delete specs[key];
+  grid[row][col] = '.';
+  document.getElementById('metaPanel').classList.remove('show');
+  selectedCell = null;
+  redraw();
+  updatePreview();
+});
+
+document.querySelectorAll('.modeBtn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    mode = btn.dataset.mode;
+    document.querySelectorAll('.modeBtn').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+document.querySelector('.modeBtn[data-mode=blocked]').classList.add('active');
+
+document.getElementById('imgInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  // 保存ファイル名を読み込んだ画像名（拡張子なし）に合わせる（手入力で上書き可能）
+  document.getElementById('exportName').value = file.name.replace(/\.[^.]+$/, '');
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const image = new Image();
+    image.onload = () => {
+      img = image;
+      redraw();
+    };
+    image.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+document.getElementById('opacity').addEventListener('input', redraw);
+
+document.getElementById('rebuildGrid').addEventListener('click', () => {
+  tileSize = Number(document.getElementById('tileSize').value) || 32;
+  cols = Number(document.getElementById('cols').value) || 1;
+  rows = Number(document.getElementById('rows').value) || 1;
+  selectedCell = null;
+  document.getElementById('metaPanel').classList.remove('show');
+  initGrid(false);
+  updatePreview();
+});
+
+function buildMaskArray() {
+  return grid.map((row) => row.map((t) => (t === '.' ? '.' : t === '#' ? '#' : '.')).join(''));
+}
+// 書き出し用マスクは歩行可否のみ。'W'/'A'マスは歩行可能マスとして扱い、判定はspecsで別途持つ。
+function buildMaskForExport() {
+  return grid.map((row) =>
+    row.map((t) => (t === '#' ? '#' : '.')).join(''),
+  );
+}
+
+function updatePreview() {
+  const out = {
+    cols, rows, tileSize,
+    mask: buildMaskForExport(),
+    specs,
+  };
+  document.getElementById('preview').value = JSON.stringify(out, null, 2);
+}
+
+document.getElementById('exportJson').addEventListener('click', () => {
+  updatePreview();
+  const blob = new Blob([document.getElementById('preview').value], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  const name = document.getElementById('exportName').value.trim() || 'stage-map';
+  a.download = `${name}.json`;
+  a.click();
+});
+
+document.getElementById('copyMask').addEventListener('click', () => {
+  const mask = buildMaskForExport();
+  const text = 'const WALK_MASK = [\n' + mask.map((row) => `  '${row}',`).join('\n') + '\n]';
+  navigator.clipboard.writeText(text);
+});
+
+document.getElementById('copySpecs').addEventListener('click', () => {
+  const text = 'const specs: Record<string, CellSpec> = ' + JSON.stringify(specs, null, 2);
+  navigator.clipboard.writeText(text);
+});
+
+document.getElementById('jsonInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const data = JSON.parse(ev.target.result);
+    tileSize = data.tileSize || 32;
+    cols = data.cols;
+    rows = data.rows;
+    document.getElementById('tileSize').value = tileSize;
+    document.getElementById('cols').value = cols;
+    document.getElementById('rows').value = rows;
+    resizeCanvases();
+    grid = Array.from({ length: rows }, () => Array(cols).fill('#'));
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        grid[r][c] = data.mask[r][c] === '.' ? '.' : '#';
+      }
+    }
+    specs = data.specs || {};
+    for (const key of Object.keys(specs)) {
+      const [r, c] = key.split(',').map(Number);
+      grid[r][c] = specs[key].exit ? 'W' : 'A';
+    }
+    redraw();
+    updatePreview();
+  };
+  reader.readAsText(file);
+});
+
+initGrid(false);
+updatePreview();
+</script>
+</body>
+</html>
