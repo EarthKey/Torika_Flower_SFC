@@ -5,6 +5,7 @@ import { playBgm } from '../state/bgm'
 import { plots, plantOn, harvestFrom, growthStageOf, KIND_LABELS, KIND_LABELS_RUBY, type PlotState, type SeedKind } from '../state/gameState'
 import { updateHud, showMessage, showToast } from '../ui/hud'
 import { openDialogue, type DialogueLine } from '../ui/dialogue'
+import { fortuneLines } from '../state/fortuneData'
 
 // 春ステージ（自宅・里）V2.3。コンセプト画（stage1.webp）をそのまま床に敷く一枚絵背景モード。
 // 通行判定は下のASCIIマスク（30×22、'#'=通行不可）で画像の川・建物・畑・木立に対応させている。
@@ -131,6 +132,31 @@ export class HomeScene extends GridScene {
     })
   }
 
+  // 花占いポストの仮テクスチャ（§9-11）。屋根付きの木の柱＋花飾り＋花びらを浮かべた水盤。
+  // 本人制作のイラスト（assets_prompts/オブジェクト_花占いポスト.md）ができたら差し替える
+  private ensureFortunePostTexture() {
+    if (this.textures.exists('hanauranai_post')) return
+    const g = this.make.graphics({ x: 0, y: 0 }, false)
+    g.fillStyle(0x4a3320, 1)
+    g.fillTriangle(4, 16, 52, 16, 28, 2) // 屋根
+    g.fillStyle(0x7a5230, 1)
+    g.fillRect(25, 16, 6, 26) // 柱
+    g.fillStyle(0xe87aa0, 1)
+    g.fillCircle(28, 27, 8) // 花飾り
+    g.fillStyle(0xfff0f4, 1)
+    g.fillCircle(28, 27, 3)
+    g.fillStyle(0x8a6a3a, 1)
+    g.fillEllipse(28, 47, 32, 13) // 水盤（木の鉢）
+    g.fillStyle(0x9ecfe8, 1)
+    g.fillEllipse(28, 46, 25, 9) // 水面
+    g.fillStyle(0xf7b7cd, 1)
+    g.fillCircle(22, 45, 2) // 浮かべた花びら
+    g.fillCircle(30, 47, 2)
+    g.fillCircle(35, 44, 2)
+    g.generateTexture('hanauranai_post', 56, 56)
+    g.destroy()
+  }
+
   constructor() {
     super('HomeScene', { type: 'image', textureKey: 'bg_home', cols: COLS, rows: ROWS, walkMask: WALK_MASK }, 14, 18)
   }
@@ -148,6 +174,8 @@ export class HomeScene extends GridScene {
       '11,21': { exit: { targetScene: 'WorkshopScene', spawnCol: DOOR_ENTRY.col, spawnRow: DOOR_ENTRY.row } },
       // 施錠された季節の門の前（門前の道の突き当たり）
       '3,25': { data: { message: '季節の門は固く閉ざされている……。次の季節へ進むには、まだ何かが足りないようだ' } },
+      // 花占いのポスト（§9-11・里の右下の道の突き当たり。ポストの絵は1マス右の(18-19,27)に重ねる）
+      '19,26': { data: { kind: 'hanauranai', message: '花占いのポストがある。Spaceキーで「今日の花占い」' } },
     }
     for (const [plotId, pos] of Object.entries(PLOT_LAYOUT)) {
       const state = plots[plotId]
@@ -186,6 +214,10 @@ export class HomeScene extends GridScene {
       this.addNpc(npc.chara, npc.row, npc.col)
     }
 
+    // 花占いのポスト（§9-11）: 右下の道の突き当たり(19,26)の1マス右の茂み側に置く
+    this.ensureFortunePostTexture()
+    this.add.image(27 * 32 + 16, 18 * 32 + 26, 'hanauranai_post').setDepth(5)
+
     updateHud()
     showMessage('矢印キー/WASDで移動。上の鳥居から種の聖域へ、工房の入口で調合部屋へ。畑の手前でSpaceキーを押して種植え/収穫')
 
@@ -203,6 +235,13 @@ export class HomeScene extends GridScene {
   }
 
   protected onAction(spec: CellSpec | undefined) {
+    // 花占い（§9-11）: トリカの独白。結果は日付で決まり、同じ日は何度見ても同じ
+    const data = spec?.data as { kind?: string } | undefined
+    if (data?.kind === 'hanauranai') {
+      openDialogue(fortuneLines())
+      return
+    }
+
     const plot = spec?.data as PlotState | undefined
     if (!plot || !('crop' in plot)) return
 
