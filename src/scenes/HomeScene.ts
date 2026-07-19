@@ -196,7 +196,9 @@ export class HomeScene extends GridScene {
     this.blockCell(19, 26)
     const post = this.add.image(26 * 32 + 16, 18 * 32 + 26, 'hanauranai_post_1')
     this.fitImage(post, 68)
-    post.setDepth(5)
+    // プレイヤー(depth10)より手前に描く: 調べるマス(17,26)はポストの奥側なので、手前に立ったトリカは
+    // ポストの屋根に隠れるのが正しい見え方。下側から重なるルートは柵で存在しないため固定値でよい
+    post.setDepth(12)
     let postFrame = 1
     this.time.addEvent({
       delay: 90,
