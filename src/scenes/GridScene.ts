@@ -1,8 +1,8 @@
 import Phaser from 'phaser'
 import { isDialogueOpen, advanceDialogue, openDialogue } from '../ui/dialogue'
 import { pickTalk } from '../state/dialogueData'
-import { recordTalk, recordGift, giveKusuri, markQuestDelivered, type Recipe } from '../state/gameState'
-import { activeQuestFor, hasAnyKusuri, GIFT_TRUST_BONUS, type Quest } from '../state/questData'
+import { recordTalk, recordGift, giveKusuri, markQuestDelivered, unlockIzunaStage1Dialogue, type Recipe } from '../state/gameState'
+import { activeQuestFor, allStage1QuestsDelivered, hasAnyKusuri, GIFT_TRUST_BONUS, type Quest } from '../state/questData'
 import { showMessage, showToast, showGiftPicker, updateHud } from '../ui/hud'
 import { options } from '../state/options'
 
@@ -337,6 +337,9 @@ export abstract class GridScene extends Phaser.Scene {
     if (!giveKusuri(recipe.id)) return // 所持0は一覧に出ないため通常起きない保険
     markQuestDelivered(quest.id)
     recordGift(quest.chara, GIFT_TRUST_BONUS)
+    // ステージ1の3依頼が揃った瞬間にイズナの深い会話を開放（§9-8。イズナ本人への依頼は無いので
+    // 他キャラへの依頼達成のたびにここで判定する）
+    if (allStage1QuestsDelivered()) unlockIzunaStage1Dialogue()
     updateHud()
     showToast(`${quest.name}に${recipe.name}を渡した`, recipe.icon)
     openDialogue(quest.thanksLines.map(line))

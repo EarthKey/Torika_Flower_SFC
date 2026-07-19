@@ -2,12 +2,17 @@
 // 発動条件: 薬を累計1個でも調合すると、各キャラが「欲しい薬の症状」を語り始める。
 // キャラは薬名を言わず、症状ヒント2つ（割当表の検証済み文言をそのまま織り込む）から
 // プレイヤーが処方を推理して渡す。正解で好感度ボーナス、不正解は薬を消費しない（再挑戦自由）。
-// 24時間ループ（渡してから24時間で再依頼）は questDeliveredAt の時刻を使って後日実装する。
+// 24時間ループ（§9-8・2026-07-19実装）: 達成から24時間経つと同じ依頼が再び発動する。
+// 実時間で判定するため、ブラウザを閉じていても復活が進む（種の採取クールダウンと同じ考え方）。
 
 import { gameState, questDeliveredAt } from './gameState'
 
 // 薬プレゼントの好感度ボーナス（話しかけ+1に対する二段構え。§9-8）
 export const GIFT_TRUST_BONUS = 2
+
+// 依頼の再発動までの実時間（§9-8確定仕様どおり24時間。テスト短縮はしない＝収穫等の
+// プロトタイプ短縮とは違い、日課の間隔そのものが仕様の核なので実時間のまま扱う）
+export const QUEST_COOLDOWN_MS = 24 * 60 * 60 * 1000
 
 interface QuestLine {
   face: number
@@ -86,18 +91,24 @@ export const QUESTS: Quest[] = [
 ]
 
 // このキャラに今アクティブな依頼があれば返す。
-// 発動条件=薬を累計1個以上調合していること（渡して手持ち0になっても発動は維持）。達成済みは対象外
-export function activeQuestFor(chara: string): Quest | null {
+// 発動条件=薬を累計1個以上調合していること（渡して手持ち0になっても発動は維持）。
+// 未達成なら常にアクティブ。達成済みでも24時間（QUEST_COOLDOWN_MS）経過していれば再びアクティブになる
+export function activeQuestFor(chara: string, nowMs = Date.now()): Quest | null {
   if (gameState.totalKusuriCrafted < 1) return null
   const quest = QUESTS.find((q) => q.chara === chara)
   if (!quest) return null
-  if (questDeliveredAt[quest.id] !== undefined) return null
+  const deliveredAt = questDeliveredAt[quest.id]
+  if (deliveredAt !== undefined && nowMs - deliveredAt < QUEST_COOLDOWN_MS) return null
   return quest
 }
 
-// ステージ1の全依頼が達成済みか（イズナの深い会話の開放条件§9-8。開放処理は好感度開放とあわせて後日実装）
-export function allStage1QuestsDelivered(): boolean {
-  return QUESTS.every((q) => questDeliveredAt[q.id] !== undefined)
+// ステージ1の全依頼が「現時点で」達成済み（=クールダウン中）か。イズナの深い会話の開放条件（§9-8）。
+// 24時間ループで依頼が復活すると再びfalseに戻るが、開放自体は一度きり（gameState.unlockIzunaStage1Dialogueが保持）
+export function allStage1QuestsDelivered(nowMs = Date.now()): boolean {
+  return QUESTS.every((q) => {
+    const deliveredAt = questDeliveredAt[q.id]
+    return deliveredAt !== undefined && nowMs - deliveredAt < QUEST_COOLDOWN_MS
+  })
 }
 
 // 手持ちに1個でも薬があるか（依頼会話のあと薬渡しウインドウを開くかの判定）

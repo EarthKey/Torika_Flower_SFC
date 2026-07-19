@@ -62,6 +62,20 @@ export function recordTalk(chara: string) {
   persist()
 }
 
+// イズナの深い会話の開放（§9-8）。「各ステージの流派キャラ3体に薬を渡し終えると開放」という
+// 開放条件は"話しかけた回数"とは無関係のため、仕様書の指定どおり信頼度プール（minTrust）の仕組みに
+// 接続する形で実現する: 条件達成時にイズナのtrustを専用の閾値まで一気に引き上げ、
+// dialogues.json側のminTrust:10プールを解禁する。通常の会話でも自然に到達しうる値ではないよう、
+// 話しかけ+1の蓄積とは別枠の一段大きい値にしてある
+export const IZUNA_STAGE1_UNLOCK_TRUST = 10
+
+export function unlockIzunaStage1Dialogue() {
+  const s = npcStates.izuna
+  if (!s || s.trust >= IZUNA_STAGE1_UNLOCK_TRUST) return
+  s.trust = IZUNA_STAGE1_UNLOCK_TRUST
+  persist()
+}
+
 // 薬プレゼントのボーナス加算（仕様書§9-8「話しかけ=+1、薬プレゼント=ボーナス加算」の二段構え）
 export function recordGift(chara: string, bonus: number) {
   const s = npcStates[chara]
