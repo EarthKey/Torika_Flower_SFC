@@ -29,17 +29,19 @@ const FLOWERS: FortuneFlower[] = [
 ]
 
 interface FortuneLuck {
+  label: string // 結果名（大吉・中吉など）。結果発表ページで3倍拡大表示する
   face: number
-  text: string
+  text: string // 詳細な結果。結果発表の次のページに出す
 }
 
-// 運勢は5段階（凶なし。癒しゲーなので一番下でも前向きに締める）
+// 運勢は5段階（凶なし。癒しゲーなので一番下でも前向きに締める）。
+// 2026-07-19改修: 結果名（3倍表示・単独ページ）と詳細文（次ページ）に分離
 const LUCKS: FortuneLuck[] = [
-  { face: 3, text: 'なんと『大吉』！　今日はなにをやってもうまくいきそう。はりきっていこー！' },
-  { face: 2, text: '『中吉』！　いい感じいい感じ。この調子でいこう。' },
-  { face: 1, text: '『吉』！　おだやかな一日になりそう。いつもどおりが、いちばんだね。' },
-  { face: 1, text: '『小吉』。ちいさな「いいこと」を見逃さないでね、ってことかな。' },
-  { face: 4, text: '『末吉』……。で、でもね、末吉は「ここから上がっていく」って意味もあるんだから！　ゆっくりいこう。' },
+  { label: '大吉', face: 3, text: '今日はなにをやってもうまくいきそう。はりきっていこー！' },
+  { label: '中吉', face: 2, text: 'いい感じいい感じ。この調子でいこう。' },
+  { label: '吉', face: 1, text: 'おだやかな一日になりそう。いつもどおりが、いちばんだね。' },
+  { label: '小吉', face: 1, text: 'ちいさな「いいこと」を見逃さないでね、ってことかな。' },
+  { label: '末吉', face: 4, text: 'で、でもね、末吉は「ここから上がっていく」って意味もあるんだから！　ゆっくりいこう。' },
 ]
 
 const TORIKA_NAME = '酉花（トリカ）'
@@ -50,21 +52,25 @@ function todaySeed(now = new Date()): number {
 }
 
 // 今日の花占いをトリカの独白（会話ウインドウ用の行）として返す。
-// 花と運勢は別々の素数で混ぜて、日ごとの組み合わせが単純な循環にならないようにする
+// 花と運勢は別々の素数で混ぜて、日ごとの組み合わせが単純な循環にならないようにする。
+// 2026-07-19改修（本人指示）: 花名は2倍・運勢結果は3倍で拡大表示し、詳細な結果は次のページへ分離
 export function fortuneLines(): DialogueLine[] {
   const seed = todaySeed()
   const flower = FLOWERS[(seed * 13 + 7) % FLOWERS.length]
   const luck = LUCKS[(seed * 31 + 3) % LUCKS.length]
-  const line = (face: number, text: string): DialogueLine => ({
+  const line = (face: number, text: string, emScale?: number): DialogueLine => ({
     speaker: 'torika',
     name: TORIKA_NAME,
     face,
     text,
+    emScale,
   })
   return [
     line(2, 'よーし、今日の花占い、いってみよう！　水盤にお花を浮かべて……。'),
-    line(3, `今日のお花は――『${flower.name}』！`),
+    line(3, `今日のお花は――**『${flower.name}』**！`, 2),
     line(flower.face, flower.text),
-    line(luck.face, `そして今日の運勢は……${luck.text}`),
+    line(1, 'そして、今日の運勢は……？'),
+    line(luck.face, `**『${luck.label}』**！`, 3),
+    line(luck.face, luck.text),
   ]
 }

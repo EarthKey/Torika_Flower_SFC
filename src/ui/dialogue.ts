@@ -7,8 +7,46 @@ export interface DialogueLine {
   speaker: string // 'izuna' | 'sakuya' | 'torika' — 顔グラのファイル接頭辞
   name: string // 表示名。漢字名のキャラは「漢字（読み）」形式（例: 酉花（トリカ）／咲耶（サクヤ）。2026-07-19ルール）
   face: number // 表情番号1〜9（1=通常 2=にっこり 3=驚き 4=困り 5=怒り/心配 6=真剣/微笑 7=白目 8=青ざめ 9=目回し）
-  text: string
+  text: string // 「**」で囲んだ部分はemScale倍で拡大表示される（花占いの花名・運勢結果など）
+  emScale?: number // **囲み部分の文字拡大率（省略時2倍）。花占いの結果は3倍で使う
   onShow?: () => void // この行が表示された瞬間に呼ばれる（チュートリアルの案内矢印などの演出フック）
+}
+
+// 「**」区切りの強調セグメント。奇数番目（**の内側）が拡大対象
+interface TextSegment {
+  text: string
+  em: boolean
+}
+
+function parseSegments(text: string): TextSegment[] {
+  return text
+    .split('**')
+    .map((t, i) => ({ text: t, em: i % 2 === 1 }))
+    .filter((s) => s.text.length > 0)
+}
+
+function plainLength(segments: TextSegment[]): number {
+  return segments.reduce((n, s) => n + s.text.length, 0)
+}
+
+// 先頭からupTo文字ぶんだけをスパン構成で描画する（タイプライターと全文表示の共通処理）
+function renderSegments(el: HTMLElement, segments: TextSegment[], upTo: number, emScale: number) {
+  el.textContent = ''
+  let remaining = upTo
+  for (const seg of segments) {
+    if (remaining <= 0) break
+    const take = seg.text.slice(0, remaining)
+    remaining -= take.length
+    if (seg.em) {
+      const span = document.createElement('span')
+      span.textContent = take
+      span.style.fontSize = `${26 * emScale}px`
+      span.style.lineHeight = '1.2'
+      el.appendChild(span)
+    } else {
+      el.appendChild(document.createTextNode(take))
+    }
+  }
 }
 
 let windowEl: HTMLDivElement | null = null
@@ -104,7 +142,11 @@ export function advanceDialogue() {
   if (typingTimer !== undefined) {
     window.clearInterval(typingTimer)
     typingTimer = undefined
-    if (textEl) textEl.textContent = lines[lineIndex].text
+    if (textEl) {
+      const line = lines[lineIndex]
+      const segments = parseSegments(line.text)
+      renderSegments(textEl, segments, plainLength(segments), line.emScale ?? 2)
+    }
     if (cursorEl) cursorEl.style.visibility = 'visible'
     return
   }
@@ -123,15 +165,18 @@ function showLine() {
   portraitEl.src = `assets/chara/${line.speaker}_face_${line.face}.png`
   nameEl.textContent = line.name
 
-  // タイプライター表示。1文字ずつ進め、完了したら▼を出す
+  // タイプライター表示。1文字ずつ進め、完了したら▼を出す（**囲みの拡大部分も1文字ずつ出す）
+  const segments = parseSegments(line.text)
+  const totalLength = plainLength(segments)
+  const emScale = line.emScale ?? 2
   window.clearInterval(typingTimer)
   typingPos = 0
   textEl.textContent = ''
   cursorEl.style.visibility = 'hidden'
   typingTimer = window.setInterval(() => {
     typingPos++
-    textEl!.textContent = line.text.slice(0, typingPos)
-    if (typingPos >= line.text.length) {
+    renderSegments(textEl!, segments, typingPos, emScale)
+    if (typingPos >= totalLength) {
       window.clearInterval(typingTimer)
       typingTimer = undefined
       cursorEl!.style.visibility = 'visible'
