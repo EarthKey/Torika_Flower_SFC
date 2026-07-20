@@ -1,8 +1,8 @@
 import Phaser from 'phaser'
 import { isDialogueOpen, advanceDialogue, openDialogue } from '../ui/dialogue'
 import { pickTalk } from '../state/dialogueData'
-import { recordTalk, recordGift, giveKusuri, markQuestDelivered, unlockIzunaStage1Dialogue, type Recipe } from '../state/gameState'
-import { activeQuestFor, allStage1QuestsDelivered, hasAnyKusuri, GIFT_TRUST_BONUS, type Quest } from '../state/questData'
+import { recordTalk, recordGift, giveKusuri, markQuestDelivered, unlockIzunaStage1Dialogue, unlockSummer, type Recipe } from '../state/gameState'
+import { activeQuestFor, allStage1QuestsDelivered, allStage1QuestsEverDelivered, hasAnyKusuri, GIFT_TRUST_BONUS, type Quest } from '../state/questData'
 import { showMessage, showToast, showGiftPicker, updateHud } from '../ui/hud'
 import { options } from '../state/options'
 
@@ -353,8 +353,14 @@ export abstract class GridScene extends Phaser.Scene {
     markQuestDelivered(quest.id)
     recordGift(quest.chara, GIFT_TRUST_BONUS)
     // ステージ1の3依頼が揃った瞬間にイズナの深い会話を開放（§9-8。イズナ本人への依頼は無いので
-    // 他キャラへの依頼達成のたびにここで判定する）
+    // 他キャラへの依頼達成のたびにここで判定する）。同じトリガーで夏の季節の門も解放する
+    // （§2解放条件・2026-07-19確定: 依頼を全キャラ分渡し終えると次ステージが開く。解放は一度きり）
     if (allStage1QuestsDelivered()) unlockIzunaStage1Dialogue()
+    // 夏の門は「過去に一度でも3件渡し終えた」判定（24時間以内判定だと、達成から
+    // 時間が経ったセーブや実装前に達成済みだった旧セーブで解放されないため）
+    if (allStage1QuestsEverDelivered() && unlockSummer()) {
+      showMessage('遠くで、重い門の開く音がした……。里の右上にある「季節の門」が開いたようだ！')
+    }
     updateHud()
     showToast(`${quest.name}に${recipe.name}を渡した`, recipe.icon)
     openDialogue(quest.thanksLines.map(line))

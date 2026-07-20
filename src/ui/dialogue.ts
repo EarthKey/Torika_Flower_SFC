@@ -70,7 +70,8 @@ export function mountDialogue() {
   windowEl = document.createElement('div')
   windowEl.id = 'dialogue'
   windowEl.style.cssText = `
-    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) scale(0.8);
+    transform-origin: bottom center;
     width: min(880px, 92vw); min-height: 200px;
     display: none; align-items: flex-end; gap: 16px;
     background: rgba(88, 24, 40, 0.86);

@@ -6,6 +6,7 @@ import { RECIPES } from '../state/gameState'
 // 画像は scripts/extract-assets.mjs が生成した public/assets/ 配下のPNG。
 
 const KINDS = ['kanzou', 'syoubaku', 'taisou'] as const
+const SUMMER_KINDS = ['syakuyaku', 'keihi', 'syoukyou'] as const
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -19,7 +20,13 @@ export class BootScene extends Phaser.Scene {
     // 全ステージ、コンセプト画をそのまま床に敷く一枚絵背景モード
     this.load.image('bg_home', 'assets/bg/home_stage.webp')
     this.load.image('bg_workshop', 'assets/bg/workshop_stage.webp')
+    // 春の種の聖域はV3画像（生薬植生スポット版・2026-07-19）へ差し替え済み。
+    // SeedFieldSceneの通行マスク/スポット座標は旧画像のトレースのままなので、再トレース待ち
     this.load.image('bg_seedfield', 'assets/bg/seedfield_stage.webp')
+    // ステージ2（夏・風魔）の3マップ（2026-07-19仮組み）
+    this.load.image('bg_summer_home', 'assets/bg/summer_home_stage.webp')
+    this.load.image('bg_summer_workshop', 'assets/bg/workshop_summer_stage.webp')
+    this.load.image('bg_summer_seedfield', 'assets/bg/seedfield_summer_stage.webp')
 
     // プレイヤー（トリカ歩行モーション: 正面・側面・背面 × 4ポーズ。右向きは側面を反転）
     // 1=接地(右腕前) 2=直立(通過) 3=接地(左腕前・1の反転) 4=直立(通過)
@@ -29,8 +36,9 @@ export class BootScene extends Phaser.Scene {
       }
     }
 
-    // NPC待機モーション（12コマ連続フレーム。咲耶/イズナ=第4版、シャオラン=腕組み、ネム=腰当て＋髪なびき）
-    for (const chara of ['sakuya', 'izuna', 'xiaolan', 'nemu']) {
+    // NPC待機モーション（12コマ連続フレーム。咲耶/イズナ=第4版、シャオラン=腕組み、ネム=腰当て＋髪なびき、
+    // 蛇ノ目=片腕で頬杖、アウン=仁王立ち、イブキ=両手を前で重ねる。ステージ2・2026-07-20生成）
+    for (const chara of ['sakuya', 'izuna', 'xiaolan', 'nemu', 'janome', 'aum', 'ibuki']) {
       for (let f = 1; f <= 12; f++) {
         this.load.image(`${chara}_idle_${f}`, `assets/chara/${chara}_idle_${f}.png`)
       }
@@ -47,7 +55,7 @@ export class BootScene extends Phaser.Scene {
       }
     }
 
-    for (const k of KINDS) {
+    for (const k of [...KINDS, ...SUMMER_KINDS]) {
       this.load.image(`seed_field_${k}`, `assets/items/seed_field_${k}.png`)
       this.load.image(`seed_bag_${k}`, `assets/items/seed_bag_${k}.png`)
       this.load.image(`medal_${k}`, `assets/items/medal_${k}.png`)
@@ -70,9 +78,9 @@ export class BootScene extends Phaser.Scene {
     // 会話データ（顔グラ画像はDOM側で直接<img>参照するためPhaserには読み込まない）
     this.load.json('dialogues', 'data/dialogues.json')
 
-    // BGM（SUNO制作・2026-07-18採用）。title=タイトル / stage1=春の里 / seed=種の聖域 /
-    // koubou=工房 / stage3=秋ステージ用（以前作った曲の再利用。ステージ未実装のため現状は未使用）
-    for (const key of ['title', 'stage1', 'stage3', 'seed', 'koubou']) {
+    // BGM（SUNO制作・2026-07-18採用）。title=タイトル / stage1=春の里 / stage2=夏の里（2026-07-19生成）/
+    // seed=種の聖域 / koubou=工房 / stage3=秋ステージ用（以前作った曲の再利用。ステージ未実装のため現状は未使用）
+    for (const key of ['title', 'stage1', 'stage2', 'stage3', 'seed', 'koubou']) {
       this.load.audio(`bgm_${key}`, [`assets/bgm/${key}.ogg`, `assets/bgm/${key}.m4a`])
     }
 

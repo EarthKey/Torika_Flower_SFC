@@ -1,12 +1,26 @@
 // プレイヤーの所持品・進行状態。まだ絵がない段階なので純粋なロジックだけを持つ。
 
-export type SeedKind = 'kanzou' | 'syoubaku' | 'taisou'
+// ステージ1（春・甲賀）3種＋ステージ2（夏・風魔）3種。ステージが増えるたびにここへ追加する
+export type SeedKind = 'kanzou' | 'syoubaku' | 'taisou' | 'syakuyaku' | 'keihi' | 'syoukyou'
+
+// 種類ごとにどのステージ解放で出現するか（HUDの表示範囲の判定に使う。§2解放条件と連動）
+export const KIND_STAGE: Record<SeedKind, 'spring' | 'summer'> = {
+  kanzou: 'spring',
+  syoubaku: 'spring',
+  taisou: 'spring',
+  syakuyaku: 'summer',
+  keihi: 'summer',
+  syoukyou: 'summer',
+}
 
 // 画面表示用の生薬名（メッセージ・トーストで使う。内部キーのローマ字を露出させない）
 export const KIND_LABELS: Record<SeedKind, string> = {
   kanzou: '甘草',
   syoubaku: '小麦',
   taisou: '大棗',
+  syakuyaku: '芍薬',
+  keihi: '桂皮',
+  syoukyou: '生姜',
 }
 
 // ふりがな付きの生薬名（2026-07-18）。漢方の読みは初見で読めないため、
@@ -15,6 +29,9 @@ export const KIND_LABELS_RUBY: Record<SeedKind, string> = {
   kanzou: '甘草（かんぞう）',
   syoubaku: '小麦（しょうばく）',
   taisou: '大棗（たいそう）',
+  syakuyaku: '芍薬（しゃくやく）',
+  keihi: '桂皮（けいひ）',
+  syoukyou: '生姜（しょうきょう）',
 }
 
 export const gameState = {
@@ -22,11 +39,17 @@ export const gameState = {
     kanzou: 0,
     syoubaku: 0,
     taisou: 0,
+    syakuyaku: 0,
+    keihi: 0,
+    syoukyou: 0,
   } as Record<SeedKind, number>,
   medals: {
     kanzou: 0,
     syoubaku: 0,
     taisou: 0,
+    syakuyaku: 0,
+    keihi: 0,
+    syoukyou: 0,
   } as Record<SeedKind, number>,
   // 完成薬の所持数（処方IDごと・2026-07-19処方別化）。キーはRECIPESのid
   kusuriCounts: {} as Record<string, number>,
@@ -52,6 +75,9 @@ export const npcStates: Record<string, NpcState> = {
   sakuya: { trust: 0, talkCount: 0 },
   xiaolan: { trust: 0, talkCount: 0 },
   nemu: { trust: 0, talkCount: 0 },
+  janome: { trust: 0, talkCount: 0 },
+  aum: { trust: 0, talkCount: 0 },
+  ibuki: { trust: 0, talkCount: 0 },
 }
 
 export function recordTalk(chara: string) {
@@ -74,6 +100,20 @@ export function unlockIzunaStage1Dialogue() {
   if (!s || s.trust >= IZUNA_STAGE1_UNLOCK_TRUST) return
   s.trust = IZUNA_STAGE1_UNLOCK_TRUST
   persist()
+}
+
+// ── ステージ解放（§2季節の門・2026-07-19確定） ──────────
+// 解放条件: そのステージの薬依頼を全キャラ分渡し終えること（ステージ1→2は咲耶・シャオラン・ネムの3依頼）。
+// 解放は一度きり（24時間ループで依頼が復活しても門は閉じない）ためセーブに含める
+
+export const stageUnlocks = { summer: false }
+
+// 夏の門を開く。今回の呼び出しで新規に開放されたときだけtrueを返す（開放の瞬間の演出メッセージ用）
+export function unlockSummer(): boolean {
+  if (stageUnlocks.summer) return false
+  stageUnlocks.summer = true
+  persist()
+  return true
 }
 
 // 薬プレゼントのボーナス加算（仕様書§9-8「話しかけ=+1、薬プレゼント=ボーナス加算」の二段構え）
@@ -115,11 +155,14 @@ export interface PlotState {
   plantedAtMs: number | null // nullなら未植え
 }
 
-// 畑3区画（自宅）。マスの担当作物は固定
+// 畑3区画（春の里・夏の里）。マスの担当作物は固定
 export const plots: Record<string, PlotState> = {
   plot_kanzou: { crop: 'kanzou', plantedAtMs: null },
   plot_syoubaku: { crop: 'syoubaku', plantedAtMs: null },
   plot_taisou: { crop: 'taisou', plantedAtMs: null },
+  plot_syakuyaku: { crop: 'syakuyaku', plantedAtMs: null },
+  plot_keihi: { crop: 'keihi', plantedAtMs: null },
+  plot_syoukyou: { crop: 'syoukyou', plantedAtMs: null },
 }
 
 // 0=未植え, 1=種, 2=芽, 3=成長中, 4=収穫可能
@@ -178,6 +221,9 @@ export const seedSpotCollectedAt: Record<SeedKind, number | null> = {
   kanzou: null,
   syoubaku: null,
   taisou: null,
+  syakuyaku: null,
+  keihi: null,
+  syoukyou: null,
 }
 
 export function seedCooldownRemainMs(kind: SeedKind, nowMs = Date.now()): number {
@@ -236,6 +282,34 @@ export const RECIPES: Recipe[] = [
     numberLabel: 'ツムラ 72番',
     desc: '甘草・小麦・大棗、3つの生薬でつくる、心をやわらげるお薬。気持ちの昂ぶりや不安、子どもの夜泣きに古くから使われてきた。いちばん多く入っているのは小麦。',
   },
+  // ── ステージ2（夏・風魔）追加分（レシピ分量表.md 2026-07-19本人サイン済み） ──
+  {
+    id: 'shakuyakukanzoto',
+    name: '芍薬甘草湯',
+    ruby: 'しゃくやくかんぞうとう',
+    cost: { syakuyaku: 2, kanzou: 2 }, // 実比 芍薬6g:甘草6g（等量）の丸め
+    icon: 'assets/items/kusuri/kusuri_shakuyakukanzoto.png',
+    numberLabel: 'ツムラ 68番',
+    desc: '芍薬と甘草を同じ量だけ合わせる、たった2つの生薬のお薬。急に足がつったときの、こわばった筋肉をゆるめるために古くから使われてきた。効き目の速さでも知られている。',
+  },
+  {
+    id: 'keishito',
+    name: '桂枝湯',
+    ruby: 'けいしとう',
+    cost: { keihi: 2, syakuyaku: 2, taisou: 2, syoukyou: 1, kanzou: 1 }, // 実比 桂皮4g:芍薬4g:大棗4g:生姜1.5g:甘草2g の丸め
+    icon: 'assets/items/kusuri/kusuri_keishito.png',
+    numberLabel: 'ツムラ 45番',
+    desc: '桂皮・芍薬・大棗・生姜・甘草の5つの生薬でつくる、かぜのひき始めの基本処方。汗ばんでいるのに寒気がとれない、体力があまり強くない人の初期のかぜに向いている。',
+  },
+  {
+    id: 'keishikashakuyakuto',
+    name: '桂枝加芍薬湯',
+    ruby: 'けいしかしゃくやくとう',
+    cost: { keihi: 2, syakuyaku: 3, taisou: 2, syoukyou: 1, kanzou: 1 }, // 桂枝湯の芍薬量だけを+1した加減方
+    icon: 'assets/items/kusuri/kusuri_keishikashakuyakuto.png',
+    numberLabel: 'ツムラ 60番',
+    desc: '桂枝湯に、芍薬をひとつだけ多く加えたお薬。おなかの張りや痛みをやわらげる働きがあり、桂枝湯との違いは芍薬の量だけ――分量ひとつで薬の役割が変わることを教えてくれる処方。',
+  },
 ]
 
 export function canCompound(recipe: Recipe): boolean {
@@ -277,6 +351,7 @@ interface SaveData {
   plots: Record<string, { crop: SeedKind; plantedAtMs: number | null }>
   npcStates?: Record<string, NpcState> // 会話システム追加前のセーブには無い
   seedSpotCollectedAt?: Record<SeedKind, number | null> // 採取クールダウン追加前のセーブには無い
+  stageUnlocks?: { summer?: boolean } // 季節の門の解放状態（2026-07-19追加。追加前のセーブには無い）
   lastPlayedMs?: number // スロット選択画面の要約表示用
 }
 
@@ -292,6 +367,7 @@ function persist() {
       plots,
       npcStates,
       seedSpotCollectedAt,
+      stageUnlocks,
       lastPlayedMs: Date.now(),
     }
     localStorage.setItem(slotKey(activeSlot), JSON.stringify(data))
@@ -315,6 +391,7 @@ function resetState() {
     npcStates[key].trust = 0
     npcStates[key].talkCount = 0
   }
+  stageUnlocks.summer = false
 }
 
 function applySaveData(data: SaveData) {
@@ -337,6 +414,7 @@ function applySaveData(data: SaveData) {
     if (data.npcStates?.[key]) Object.assign(npcStates[key], data.npcStates[key])
   }
   if (data.seedSpotCollectedAt) Object.assign(seedSpotCollectedAt, data.seedSpotCollectedAt)
+  stageUnlocks.summer = data.stageUnlocks?.summer ?? false
 }
 
 function readSlot(slot: number): SaveData | null {

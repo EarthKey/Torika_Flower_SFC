@@ -12,6 +12,7 @@ const SRC = 'D:/AIillust/CriptNinja/2026/Game/TorkaFlower/V2'
 const OUT = new URL('../public/assets', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 
 const KINDS = ['kanzou', 'syoubaku', 'taisou']
+const SUMMER_KINDS = ['syakuyaku', 'keihi', 'syoukyou']
 
 // ── 切り出し定義 ─────────────────────────────
 // rect: [left, top, width, height]（シート上のおおまかなセル範囲。正確さはトリムが吸収する）
@@ -64,6 +65,56 @@ const jobs = []
       out: `items/medal_${kind}.png`,
     })
   }
+}
+
+// ── ステージ2（夏・風魔）: 芍薬・桂皮・生姜 ─────────────
+
+// 種シート（夏・テキストなし版）: 1448×1086、seed.webpと同じ4列×3行グリッド（field/bag/mini/glow）
+{
+  const CW = 362
+  const cols = ['field', 'bag', 'mini', 'glow']
+  SUMMER_KINDS.forEach((kind, r) => {
+    cols.forEach((col, c) => {
+      jobs.push({
+        src: 'Seed_summer.webp',
+        rect: [c * CW, r * CW, CW, CW],
+        out: `items/seed_${col}_${kind}.png`,
+      })
+    })
+  })
+}
+
+// 植物の成長4段階（夏・テキストなし版）: 1448×1086、春と同じ上段=拡大絵/下段=32×32簡略版グリッド
+{
+  const files = { syakuyaku: 'syakuyaku.webp', keihi: 'keihi.webp', syoukyou: 'syoukyou.webp' }
+  const CW = 362
+  for (const kind of SUMMER_KINDS) {
+    for (let stage = 1; stage <= 4; stage++) {
+      jobs.push({
+        src: files[kind],
+        rect: [(stage - 1) * CW, 40, CW, 640],
+        out: `plants/${kind}_large_stage${stage}.png`,
+      })
+      jobs.push({
+        src: files[kind],
+        rect: [(stage - 1) * CW, 680, CW, 400],
+        out: `plants/${kind}_stage${stage}.png`,
+      })
+    }
+  }
+}
+
+// 生薬メダル（夏・クリーンな3等分シート、テキストなし）: 1448×1086、横3列均等グリッド
+// 並び順は左から芍薬(ピンク)・桂皮(こげ茶)・生姜(緑)
+{
+  const CW = 1448 / 3
+  SUMMER_KINDS.forEach((kind, c) => {
+    jobs.push({
+      src: 'medal summer.webp',
+      rect: [Math.round(c * CW), 0, Math.round(CW), 1086],
+      out: `items/medal_${kind}.png`,
+    })
+  })
 }
 
 // 甘麦大棗湯（テキストなし版・スティック分包8パネル）: 1448×1086

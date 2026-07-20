@@ -23,12 +23,15 @@ const SRC_DIR = 'D:/AIillust/CriptNinja/2026/Game/TorkaFlower/V2'
 const OUT = new URL('../public/assets/chara', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 
 const SHEETS = [
-  // トリカ・イズナ・咲耶は切り出し済み。再実行時は下の3行を有効化する
+  // トリカ・イズナ・咲耶・シャオラン・ネムは切り出し済み。再実行時は下の5行を有効化する
   // { src: 'C_Torika2.webp', prefix: 'torika' },
   // { src: 'C_Izuna2.webp', prefix: 'izuna' },
   // { src: 'C_Sakuya2.webp', prefix: 'sakuya' },
-  { src: 'C_Xiaoran (2).webp', prefix: 'xiaolan' },
-  { src: 'C_Nemu (2).webp', prefix: 'nemu' },
+  // { src: 'C_Xiaoran (2).webp', prefix: 'xiaolan' },
+  // { src: 'C_Nemu (2).webp', prefix: 'nemu' },
+  { src: 'C_Janome (2).webp', prefix: 'janome' }, // 蛇ノ目（ジャノメ）
+  { src: 'C_Aum (2).webp', prefix: 'aum' }, // アウン
+  { src: 'C_Ibuki (2).webp', prefix: 'ibuki' }, // イブキ
 ]
 
 const COLS = 3
@@ -109,10 +112,33 @@ function clearEnclosedPockets(data, width, height, bg, tolerance = 14) {
   }
 }
 
+// 背景色の推定は「外周4隅の平均」だと、たまたま四隅の1つにキャラの髪や小物が
+// かかっているコマで平均が大きく歪み、背景除去がほぼ効かなくなる事故につながる
+// （アウンの待機モーションで発生・2026-07-20発見・extract-idle.mjsと同じ対策）。
+// 外周全ピクセルの中央値（median）を使えば頑健になる。
+function estimateBgMedian(data, width, height) {
+  const rs = [], gs = [], bs = []
+  for (let x = 0; x < width; x++) {
+    for (const y of [0, height - 1]) {
+      const i = (y * width + x) * 4
+      rs.push(data[i]); gs.push(data[i + 1]); bs.push(data[i + 2])
+    }
+  }
+  for (let y = 0; y < height; y++) {
+    for (const x of [0, width - 1]) {
+      const i = (y * width + x) * 4
+      rs.push(data[i]); gs.push(data[i + 1]); bs.push(data[i + 2])
+    }
+  }
+  const median = (arr) => {
+    const s = [...arr].sort((a, b) => a - b)
+    return s[Math.floor(s.length / 2)]
+  }
+  return [median(rs), median(gs), median(bs)]
+}
+
 function removeBackground(data, width, height, tolerance = 34) {
-  const idx = (x, y) => (y * width + x) * 4
-  const corners = [idx(0, 0), idx(width - 1, 0), idx(0, height - 1), idx(width - 1, height - 1)]
-  const bg = [0, 1, 2].map((ch) => corners.reduce((s, i) => s + data[i + ch], 0) / 4)
+  const bg = estimateBgMedian(data, width, height)
   const isBg = (i) =>
     Math.abs(data[i] - bg[0]) <= tolerance &&
     Math.abs(data[i + 1] - bg[1]) <= tolerance &&

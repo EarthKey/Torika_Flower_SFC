@@ -1,13 +1,16 @@
 import Phaser from 'phaser'
 import { GridScene, type CellSpec } from './GridScene'
-import { gameState, tryCompound, RECIPES, KIND_LABELS_RUBY, type Recipe, type SeedKind } from '../state/gameState'
+import { tryCompound, stageUnlocks, RECIPES, type Recipe, type SeedKind } from '../state/gameState'
 import { updateHud, showMessage, showToast, showRecipePicker } from '../ui/hud'
 import { playBgm } from '../state/bgm'
 
 // 工房内部。既存のコンセプト画（koubou.webp）をそのまま床に敷く一枚絵背景モード。
-// 中央の調合台（画像に描かれた机）の上に生薬メダルの3つの器を重ねて表示し、
-// 器の右にある本をクリックするとレシピの数式が開く（常時表示はしない）。
+// 中央の調合台（画像に描かれた机）の右にある本をクリックするとレシピの数式が開く（常時表示はしない）。
 // 完成した薬は演出のあと所持品（HUDの個数）に入る。
+// 2026-07-20本人指示: 机の上に生薬メダルの器を置く演出は廃止した。処方が増えるほど
+// 必要なメダルの種類も増えるため、固定3種の器だけを置くと「これだけで作れる」ように
+// 誤解される矛盾が生じるため。「何が作れるか」は調合台（乳鉢）を調べたときに開く
+// レシピ選択ウインドウ（showRecipePicker・所持数に応じて明暗表示）で十分に伝わる
 
 const COLS = 30
 const ROWS = 22
@@ -31,12 +34,9 @@ const ACTION_CELLS = [
   { row: 5, col: 15 },
 ]
 
-// 机の上にすでに描かれている3つの器の位置（甘草=緑, 小麦=黄土, 大棗=桃色の器）
-const BOWL_POS: Record<SeedKind, { row: number; col: number }> = {
-  kanzou: { row: 7, col: 13 },
-  syoubaku: { row: 7, col: 15 },
-  taisou: { row: 7, col: 17 },
-}
+// レシピ数式パネルの位置合わせに使う基準点（旧・器の位置をそのまま流用。机の上のこのあたりに
+// パネルが浮かぶ、というレイアウト用の目安であり、メダル画像はもう重ねて表示しない）
+const PANEL_ANCHOR = { row: 7, colLeft: 13, colRight: 17 }
 
 // 机の上に描かれている開いた本（クリックでレシピを開閉する）
 const BOOK_POS = { row: 8, col: 18 }
@@ -49,16 +49,27 @@ const SHELF = { row: 7, col: 14 }
 // 四隅（koubou.json 2026-07-17版）に4色を配置。工房は春夏秋冬で4つ用意する予定で、
 // 転送陣は「各季節の工房の中」同士を結ぶネットワーク（2026-07-18確定）。
 // 踏むと対応する季節の工房の魔法陣中央（WARP_ARRIVAL）に出る。
-// 色と季節の対応: 春=ピンク/夏=青/秋=黄/冬=緑。現状は春の工房のみ存在するためピンクだけ稼働
+// 色と季節の対応: 春=ピンク/夏=青/秋=黄/冬=緑（四隅配置は2026-07-19本人確認）
 const WARP_PADS = [
-  { season: '春', tex: 'warp_pink', row: 10, col: 11, exit: { targetScene: 'WorkshopScene', spawnCol: WARP_ARRIVAL.col, spawnRow: WARP_ARRIVAL.row } },
-  { season: '夏', tex: 'warp_blue', row: 10, col: 18, exit: null }, // 夏の工房（未実装）
-  { season: '秋', tex: 'warp_yellow', row: 13, col: 11, exit: null }, // 秋の工房（未実装）
-  { season: '冬', tex: 'warp_green', row: 13, col: 18, exit: null }, // 冬の工房（未実装）
+  { season: '春', tex: 'warp_pink', row: 10, col: 11 },
+  { season: '夏', tex: 'warp_blue', row: 10, col: 18 },
+  { season: '秋', tex: 'warp_yellow', row: 13, col: 11 },
+  { season: '冬', tex: 'warp_green', row: 13, col: 18 },
 ] as const
 
-// 当たり判定マッピングツール（tools/stage-mapper）でkoubou.webpをトレースして書き出したマスク
-const WALK_MASK = [
+// 転送先。null=転送しない（春=現在地の案内、秋冬=封印メッセージ＋薄暗表示）。
+// §9-8「各ステージへ到達済みになると対応する色のワープが開放される」に従い、
+// 夏は季節の門の解放（stageUnlocks.summer）と連動。
+// 春の自陣は2026-07-20本人指示で「今いる場所」案内に変更（夏の工房の夏陣と同じ挙動）
+function padExit(season: string): { targetScene: string; spawnCol: number; spawnRow: number } | null {
+  if (season === '夏' && stageUnlocks.summer)
+    return { targetScene: 'SummerWorkshopScene', spawnCol: WARP_ARRIVAL.col, spawnRow: WARP_ARRIVAL.row }
+  return null
+}
+
+// 当たり判定マッピングツール（tools/stage-mapper）でkoubou.webpをトレースして書き出したマスク。
+// 夏の工房（SummerWorkshopScene）も同じ部屋構造のためこのマスクを共用する（2026-07-20本人判断）
+export const WORKSHOP_WALK_MASK = [
   '##############################',
   '##############################',
   '##############################',
@@ -83,17 +94,14 @@ const WALK_MASK = [
   '##############################',
 ]
 
-const SLOT_KINDS: SeedKind[] = ['kanzou', 'syoubaku', 'taisou']
-
 export class WorkshopScene extends GridScene {
-  private slotImages: Partial<Record<SeedKind, Phaser.GameObjects.Image>> = {}
   private recipeGroup!: Phaser.GameObjects.Container
   private recipeOpen = false
 
   constructor() {
     super(
       'WorkshopScene',
-      { type: 'image', textureKey: 'bg_workshop', cols: COLS, rows: ROWS, walkMask: WALK_MASK },
+      { type: 'image', textureKey: 'bg_workshop', cols: COLS, rows: ROWS, walkMask: WORKSHOP_WALK_MASK },
       DOOR_COL,
       DOOR_ROW - 1,
     )
@@ -108,11 +116,14 @@ export class WorkshopScene extends GridScene {
     for (const cell of ACTION_CELLS) {
       specs[`${cell.row},${cell.col}`] = { data: { kind: 'workshopTable' } }
     }
-    // ステージワープ: 開放済みの色は踏むとそのステージへ。封印中はメッセージだけ出す
+    // ステージワープ: 開放済みの色は踏むとそのステージへ。自陣（春）は現在地の案内、封印中はメッセージ
     for (const pad of WARP_PADS) {
-      specs[`${pad.row},${pad.col}`] = pad.exit
-        ? { exit: pad.exit }
-        : { data: { message: `${pad.season}の転送陣はまだ固く封印されている……` } }
+      const exit = padExit(pad.season)
+      specs[`${pad.row},${pad.col}`] = exit
+        ? { exit }
+        : pad.season === '春'
+          ? { data: { message: 'ここは春の工房の転送陣。今いる場所だ' } }
+          : { data: { message: `${pad.season}の転送陣はまだ固く封印されている……` } }
     }
     return specs
   }
@@ -126,14 +137,6 @@ export class WorkshopScene extends GridScene {
     // 工房BGM。playBgmは同じ曲なら流しっぱなしにするため、転送陣で工房間を
     // ワープ（同一シーン再入場）しても途切れない（2026-07-18仕様）
     playBgm(this, 'bgm_koubou')
-
-    // 机の上、既存の器の絵にメダルアイコンを重ねる
-    SLOT_KINDS.forEach((kind) => {
-      const pos = BOWL_POS[kind]
-      const img = this.addCellImage(pos.row, pos.col, `medal_${kind}`, 34)
-      this.slotImages[kind] = img
-    })
-    this.refreshSlots()
 
     // レシピの数式パネル（初期状態は閉じている。本をクリックすると開閉）
     this.buildRecipePanel()
@@ -149,15 +152,15 @@ export class WorkshopScene extends GridScene {
     })
 
     // 4色の転送陣（16コマの魔法陣イラスト・2026-07-17差し替え）。
-    // 開放済み（春）はアニメ再生、封印中は1コマ目を薄暗く静止表示
+    // 開放済みはアニメ再生、自陣（春）は明るく静止、封印中は1コマ目を薄暗く静止表示
     const animatedPads: { img: Phaser.GameObjects.Image; tex: string }[] = []
     for (const pad of WARP_PADS) {
       const img = this.add.image(pad.col * 32 + 16, pad.row * 32 + 16, `${pad.tex}_1`)
       this.fitImage(img, 46)
       img.setDepth(3)
-      if (pad.exit) {
+      if (padExit(pad.season)) {
         animatedPads.push({ img, tex: pad.tex })
-      } else {
+      } else if (pad.season !== '春') {
         img.setAlpha(0.35)
       }
     }
@@ -185,12 +188,6 @@ export class WorkshopScene extends GridScene {
 
     updateHud()
     showMessage('矢印キー/WASD/クリックで移動。机の本をクリックでレシピ表示、机の奥に回り込んでSpaceキーを押して調合')
-
-    this.time.addEvent({
-      delay: 300,
-      loop: true,
-      callback: () => this.refreshSlots(),
-    })
   }
 
   // レシピ本: 覚えている全処方の数式を縦に並べる（処方追加はRECIPESに足すだけで反映）
@@ -198,8 +195,8 @@ export class WorkshopScene extends GridScene {
     const rowH = 40
     const panelWidth = 320
     const panelHeight = rowH * RECIPES.length + 8
-    const y = BOWL_POS.kanzou.row * 32 - 26 - (panelHeight - 40) / 2
-    const centerX = ((BOWL_POS.kanzou.col + BOWL_POS.taisou.col) / 2) * 32 + 16
+    const y = PANEL_ANCHOR.row * 32 - 26 - (panelHeight - 40) / 2
+    const centerX = ((PANEL_ANCHOR.colLeft + PANEL_ANCHOR.colRight) / 2) * 32 + 16
     const textStyle = { fontFamily: 'monospace', fontSize: '13px', color: '#f2e6c8' }
 
     const bg = this.add.rectangle(0, 0, panelWidth, panelHeight, 0x141210, 0.82).setStrokeStyle(1, 0x8a6a3a)
@@ -255,22 +252,9 @@ export class WorkshopScene extends GridScene {
         this.playCompleteEffect()
       })
     } else {
-      const need = (Object.entries(recipe.cost) as [SeedKind, number][])
-        .map(([k, n]) => `${KIND_LABELS_RUBY[k]}×${n}`)
-        .join('・')
-      showMessage(`メダルが足りない。必要: ${need}`)
+      showMessage('メダルが足りない')
     }
-    this.refreshSlots()
     updateHud()
-  }
-
-  // 所持しているメダルは明るく、未所持は薄暗く表示（処方ごとの充足はレシピ選択ウインドウ側で示す）
-  private refreshSlots() {
-    for (const kind of SLOT_KINDS) {
-      const img = this.slotImages[kind]
-      if (!img) continue
-      img.setAlpha(gameState.medals[kind] > 0 ? 1 : 0.3)
-    }
   }
 
   // 調合成功のカットインムービー（PV素材再利用の試験導入・2026-07-19）。

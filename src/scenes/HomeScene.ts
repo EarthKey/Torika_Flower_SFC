@@ -2,10 +2,11 @@ import Phaser from 'phaser'
 import { GridScene, type CellSpec } from './GridScene'
 import { DOOR_ENTRY } from './WorkshopScene'
 import { playBgm } from '../state/bgm'
-import { plots, plantOn, harvestFrom, growthStageOf, KIND_LABELS, KIND_LABELS_RUBY, type PlotState, type SeedKind } from '../state/gameState'
+import { plots, plantOn, harvestFrom, growthStageOf, stageUnlocks, unlockSummer, KIND_LABELS, KIND_LABELS_RUBY, type PlotState } from '../state/gameState'
 import { updateHud, showMessage, showToast } from '../ui/hud'
 import { openDialogue, type DialogueLine } from '../ui/dialogue'
 import { fortuneLines } from '../state/fortuneData'
+import { allStage1QuestsEverDelivered } from '../state/questData'
 
 // 春ステージ（自宅・里）V2.3。コンセプト画（stage1.webp）をそのまま床に敷く一枚絵背景モード。
 // 通行判定は下のASCIIマスク（30×22、'#'=通行不可）で画像の川・建物・畑・木立に対応させている。
@@ -42,12 +43,6 @@ const WALK_MASK = [
   '##############.###############', // r20
   '##############################', // r21
 ]
-
-const CROP_COLORS: Record<SeedKind, number> = {
-  kanzou: 0xc9a86a,
-  syoubaku: 0xd4b23b,
-  taisou: 0x8b3a2b,
-}
 
 // 畑の作業マス（柵の手前の通路口）と、成長スプライトを重ねる位置。
 // artX/artYは背景画像の土の領域を色検出で実測したキャンバス座標（土の中心にぴったり重ねる）。
@@ -96,6 +91,7 @@ export class HomeScene extends GridScene {
   private plotImages: Record<string, Phaser.GameObjects.Image> = {}
   private introPending = false
   private guideArrow?: Phaser.GameObjects.Image
+  private enteringGate = false // 門のフェード中に再度onEnterが走っても二重遷移しないためのガード
 
   // チュートリアルの案内矢印テクスチャ（赤・下向き・白フチ）。図形の組み合わせだと
   // Phaserの原点計算で軸と三角がずれるため、1枚のテクスチャに焼いて使う（2026-07-19修正）
@@ -147,15 +143,17 @@ export class HomeScene extends GridScene {
       '2,14': { exit: { targetScene: 'SeedFieldScene', spawnCol: 15, spawnRow: 18 } },
       // 工房の入口ポーチ（縦通路c21の突き当たり）。出現は工房下端の扉のすぐ内側（2026-07-18修正）
       '11,21': { exit: { targetScene: 'WorkshopScene', spawnCol: DOOR_ENTRY.col, spawnRow: DOOR_ENTRY.row } },
-      // 施錠された季節の門の前（門前の道の突き当たり）
-      '3,25': { data: { message: '季節の門は固く閉ざされている……。次の季節へ進むには、まだ何かが足りないようだ' } },
+      // 季節の門の前（門前の道の突き当たり）。解放判定はonEnterで毎回行う
+      // （§2解放条件・2026-07-19確定: 依頼3件をすべて渡すと開く。specialsはシーン生成時に
+      // 固まるため、滞在中に解放された場合もonEnter側の判定なら即座に通れる）
+      '3,25': { data: { kind: 'seasonGate', message: '季節の門は固く閉ざされている……。次の季節へ進むには、まだ何かが足りないようだ' } },
       // 花占いのポスト（§9-11）: ポスト本体は(18,26)-(19,26)を占有し通行不可（onReadyでblockCell）。
       // 調べるマスはその手前(17,26)（2026-07-19実機評: 台の上に乗って見えたため1マス拡張）
       '17,26': { data: { kind: 'hanauranai', message: '花占いのポストがある。Spaceキーで「今日の花占い」' } },
     }
     for (const [plotId, pos] of Object.entries(PLOT_LAYOUT)) {
-      const state = plots[plotId]
-      specs[`${pos.actRow},${pos.actCol}`] = { data: state, strokeColor: CROP_COLORS[state.crop] }
+      // 畑の色枠は2026-07-20本人指示で廃止。代わりに乗った瞬間にonEnterで案内テキストを出す
+      specs[`${pos.actRow},${pos.actCol}`] = { data: plots[plotId] }
     }
     return specs
   }
@@ -221,7 +219,27 @@ export class HomeScene extends GridScene {
   }
 
   protected onEnter(spec: CellSpec) {
-    const data = spec.data as { message?: string } | undefined
+    const data = spec.data as ({ kind?: string; message?: string } & Partial<PlotState>) | undefined
+    // 季節の門: 解放済みなら通常のexitマスと同じ手順（フェード→遷移）で夏の里へ。
+    // 到着は夏の里の青竹の関所の下(3,14)。
+    // 旧セーブ救済（2026-07-19）: 解放フラグ実装より前に依頼3件を達成済みだったセーブは
+    // 「渡した瞬間」のトリガーが走っていないため、門に触れた時点でも達成歴を見て解放する
+    if (data?.kind === 'seasonGate') {
+      if (!stageUnlocks.summer && allStage1QuestsEverDelivered()) unlockSummer()
+      if (stageUnlocks.summer && !this.enteringGate) {
+        this.enteringGate = true
+        this.cameras.main.fadeOut(200, 0, 0, 0)
+        this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+          this.scene.start('SummerHomeScene', { spawnCol: 14, spawnRow: 19 })
+        })
+        return
+      }
+    }
+    // 畑: 乗った瞬間に案内テキストを出す（2026-07-20本人指示。色枠の代わり）
+    if (data?.crop) {
+      showMessage(`ここは${KIND_LABELS_RUBY[data.crop]}を植える場所`)
+      return
+    }
     if (data?.message) showMessage(data.message)
   }
 

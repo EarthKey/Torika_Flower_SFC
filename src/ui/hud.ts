@@ -1,7 +1,7 @@
 // UIはCanvasの上にHTML/CSSで重ねる方針（仕様書§7）。プロトタイプ段階の簡易HUD。
 // 薬の表示は§9-9（2026-07-19確定）: 薬名テキストは常時表示せずアイコンのみ。
 // クリックで解説カード（薬名＋ふりがな＋番号＋構成生薬＋短い解説）＝簡易図鑑を兼ねる。
-import { gameState, RECIPES, KIND_LABELS_RUBY, canCompound, type Recipe, type SeedKind } from '../state/gameState'
+import { gameState, RECIPES, KIND_LABELS_RUBY, KIND_STAGE, stageUnlocks, canCompound, type Recipe, type SeedKind } from '../state/gameState'
 import { options, saveOptions, notifyVolumeChanged } from '../state/options'
 
 let hudEl: HTMLDivElement | null = null
@@ -20,6 +20,7 @@ export function mountHud() {
     background: rgba(20,15,10,0.75); color: #f2e6c8;
     padding: 12px 18px; border: 2px solid #8a6a3a; border-radius: 4px;
     line-height: 1.6; pointer-events: none;
+    transform: scale(0.8); transform-origin: top left;
   `
   document.body.appendChild(hudEl)
 
@@ -315,10 +316,20 @@ function icon(src: string): string {
   return `<img src="${src}" style="${ICON_STYLE}">`
 }
 
+// HUDに出す種類は「到達済みステージぶんだけ」。春は常時、夏は季節の門が開いてから
+// 表示が増える（未収集でも0件のアイコンは出す＝所持品欄の存在を先に知らせる方式。
+// §2解放条件と連動。2026-07-20確定: 全種類を最初から出す/初回入手まで隠す、の両案のうち
+// 「ステージ解放と同時にアイコン欄も増える」を採用。ステージが増えるほどHUDが単調に伸びていく）
+function visibleKinds(): SeedKind[] {
+  return (Object.keys(KIND_STAGE) as SeedKind[]).filter(
+    (k) => KIND_STAGE[k] === 'spring' || stageUnlocks.summer,
+  )
+}
+
 export function updateHud() {
   if (!hudEl) return
   const s = gameState
-  const kinds = ['kanzou', 'syoubaku', 'taisou'] as const
+  const kinds = visibleKinds()
   const seedRow = kinds.map((k) => `${icon(`assets/items/seed_bag_${k}.png`)}${s.seeds[k]}`).join('')
   const medalRow = kinds.map((k) => `${icon(`assets/items/medal_${k}.png`)}${s.medals[k]}`).join('')
   // 薬はアイコンのみ（§9-9）。所持済み=クリックで解説カード、未所持=グレーの「?」（収集要素）

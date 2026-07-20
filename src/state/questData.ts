@@ -90,12 +90,80 @@ export const QUESTS: Quest[] = [
   },
 ]
 
+// ステージ2（夏・風魔）の3依頼。症状ヒント①②・必須トーク要素（兄アトザ／相棒オロチ／相棒ヤーマ）は
+// 薬依頼割当表.mdの本人サイン済み文言に準拠
+export const QUESTS_STAGE2: Quest[] = [
+  {
+    id: 'aum_shakuyakukanzoto',
+    chara: 'aum',
+    name: 'アウン',
+    recipeId: 'shakuyakukanzoto',
+    requestLines: [
+      { face: 5, text: '……トリカ、ちょうどいいところに。実はさ、夜中に足がつって飛び起きるんだ。ここ最近、毎晩みたいに。' },
+      { face: 8, text: '急にふくらはぎがぎゅっと痛くなってさ……夏の走り込み、ちょっとやりすぎたかもしれない。' },
+      { face: 1, text: '兄貴のアトザは、これくらい平気な顔してこなしてたけどな……。俺には、まだ早かったみたいだ。' },
+      { face: 6, text: 'な、トリカ。こういうときに効くお薬、なんとかならないか？' },
+    ],
+    thanksLines: [
+      { face: 3, text: 'おお、マジか！　もう作ってくれたのか！' },
+      { face: 2, text: 'ありがとな、トリカ！　これで夜中に飛び起きずに済みそうだ。……兄貴にも自慢しとくわ！' },
+    ],
+    wrongLines: [
+      { face: 4, text: 'ん……悪いお薬じゃないんだろうけど、俺の足のつりには合わなそうだな。' },
+      { face: 1, text: 'もう一回、さっきの話思い出してくれよ！' },
+    ],
+  },
+  {
+    id: 'janome_keishito',
+    chara: 'janome',
+    name: '蛇ノ目（ジャノメ）',
+    recipeId: 'keishito',
+    requestLines: [
+      { face: 1, text: '……トリカか。ちょうどいい、聞いてくれ。かぜのひき始めみたいに、ゾクゾクするんだ。' },
+      { face: 6, text: 'じんわり汗は出てるのに、寒気がとれない。……夕立に打たれたのが、まずかったな。' },
+      { face: 2, text: '相棒のオロチにも心配された。……俺にしては珍しいことだ。' },
+      { face: 1, text: '何か、合う薬があれば……くれると助かる。' },
+    ],
+    thanksLines: [
+      { face: 2, text: '……ああ、悪いな。助かった。' },
+      { face: 6, text: 'お前、ちゃんと薬師してるじゃないか。……見直した。' },
+    ],
+    wrongLines: [
+      { face: 1, text: '……いや、それは違う気がするな。' },
+      { face: 6, text: 'もう一度、俺の話を聞いてから選んでくれ。' },
+    ],
+  },
+  {
+    id: 'ibuki_keishikashakuyakuto',
+    chara: 'ibuki',
+    name: 'イブキ',
+    recipeId: 'keishikashakuyakuto',
+    requestLines: [
+      { face: 4, text: 'トリカさん……少し、相談してもいいですか。おなかが張って、しくしく痛むんです。' },
+      { face: 8, text: '調子も不安定で……ゆるくなったり、止まったり。冷たいものを食べすぎたのが、いけなかったみたいです。' },
+      { face: 1, text: '相棒のヤーマにも、そんなに食べるからだと呆れられました。……返す言葉もありません。' },
+      { face: 6, text: 'もし、合うお薬があれば……分けていただけますか。' },
+    ],
+    thanksLines: [
+      { face: 3, text: 'これを、僕に……ありがとうございます。' },
+      { face: 2, text: '少し、楽になった気がします。……大切に頂きますね。' },
+    ],
+    wrongLines: [
+      { face: 4, text: '……ありがたいのですが、今の僕には、少し合わない気がします。' },
+      { face: 6, text: 'もう一度、僕の話を聞いてもらえますか。' },
+    ],
+  },
+]
+
+// ステージ1・2をまとめた全依頼（activeQuestFor等はこちらを見る）
+const ALL_QUESTS: Quest[] = [...QUESTS, ...QUESTS_STAGE2]
+
 // このキャラに今アクティブな依頼があれば返す。
 // 発動条件=薬を累計1個以上調合していること（渡して手持ち0になっても発動は維持）。
 // 未達成なら常にアクティブ。達成済みでも24時間（QUEST_COOLDOWN_MS）経過していれば再びアクティブになる
 export function activeQuestFor(chara: string, nowMs = Date.now()): Quest | null {
   if (gameState.totalKusuriCrafted < 1) return null
-  const quest = QUESTS.find((q) => q.chara === chara)
+  const quest = ALL_QUESTS.find((q) => q.chara === chara)
   if (!quest) return null
   const deliveredAt = questDeliveredAt[quest.id]
   if (deliveredAt !== undefined && nowMs - deliveredAt < QUEST_COOLDOWN_MS) return null
@@ -109,6 +177,13 @@ export function allStage1QuestsDelivered(nowMs = Date.now()): boolean {
     const deliveredAt = questDeliveredAt[q.id]
     return deliveredAt !== undefined && nowMs - deliveredAt < QUEST_COOLDOWN_MS
   })
+}
+
+// ステージ1の全依頼を「過去に一度でも」渡し終えているか（24時間の期限なし）。
+// 季節の門の解放（§2・一度きり）用。allStage1QuestsDelivered（24時間以内）だと、
+// 実装より前に達成済みだった旧セーブや、達成から24時間過ぎたセーブで解放されないため分離
+export function allStage1QuestsEverDelivered(): boolean {
+  return QUESTS.every((q) => questDeliveredAt[q.id] !== undefined)
 }
 
 // 手持ちに1個でも薬があるか（依頼会話のあと薬渡しウインドウを開くかの判定）

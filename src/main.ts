@@ -4,6 +4,9 @@ import { TitleScene } from './scenes/TitleScene'
 import { HomeScene } from './scenes/HomeScene'
 import { SeedFieldScene } from './scenes/SeedFieldScene'
 import { WorkshopScene } from './scenes/WorkshopScene'
+import { SummerHomeScene } from './scenes/SummerHomeScene'
+import { SummerSeedFieldScene } from './scenes/SummerSeedFieldScene'
+import { SummerWorkshopScene } from './scenes/SummerWorkshopScene'
 import { mountHud, setHudVisible } from './ui/hud'
 import { mountDialogue } from './ui/dialogue'
 
@@ -22,7 +25,7 @@ const game = new Phaser.Game({
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  scene: [BootScene, TitleScene, HomeScene, SeedFieldScene, WorkshopScene],
+  scene: [BootScene, TitleScene, HomeScene, SeedFieldScene, WorkshopScene, SummerHomeScene, SummerSeedFieldScene, SummerWorkshopScene],
 })
 
 // 音量設定をPhaserのサウンドマネージャへ反映。master=SoundManager全体、BGM=再生中の曲個別

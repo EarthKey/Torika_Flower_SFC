@@ -6,6 +6,13 @@
 // 読み順（上段1〜4→中段5〜8→下段9〜12）どおりに idle_1..12 として書き出す。
 // 縦位置の共通化は全12コマのunionで行う（行ごとだと段の切り替わりでサイズが跳ぶため）。
 // ※旧3モーション版から切り出した greet/kiai/think のPNGは会話リアクション用に残す（上書きしない）。
+//
+// 既知の副作用（2026-07-20発見）: clearEnclosedPocketsBelow()は「頭部ガード帯に掛からない
+// 背景色の塊」を消す設計のため、手甲の鋲・目のハイライトなど「背景色に近いキャラの一部」も
+// 誤って透明化することがある（extract-faces.mjsと同じ問題。アウンの待機モーション全12コマで
+// 手甲の鋲が消えていたのを本人指摘で発見）。再実行後は必ず
+// `node scripts/fix-enclosed-holes.mjs public/assets/chara/<prefix>_idle_*.png` を通して、
+// 外周とつながっていない孤立した透明ピクセル（＝穴）を塗り戻すこと。
 
 import sharp from 'sharp'
 import { mkdirSync } from 'node:fs'
@@ -20,17 +27,56 @@ const SHEETS = [
   // { src: 'C_Sakuya3.webp', prefix: 'sakuya' },
   // { src: 'C_Izuna3.webp', prefix: 'izuna' },
   // { src: 'C_Xiaoran (3).webp', prefix: 'xiaolan' },
-  { src: 'C_Nemu (3).webp', prefix: 'nemu' }, // ネム: 白抜き強化版で再切り出し（2026-07-18）
+  // { src: 'C_Nemu (3).webp', prefix: 'nemu' },
+  { src: 'C_Janome (3).webp', prefix: 'janome' }, // 蛇ノ目（ジャノメ）
+  { src: 'C_Aum (3).webp', prefix: 'aum' }, // アウン
+  { src: 'C_Ibuki (3).webp', prefix: 'ibuki' }, // イブキ
 ]
 
 const COLS = 4
 const ROWS = 3
 const PAD = 2
 
+// 特定コマの差し替え（1始まりのコマ番号 → 差し替え元コマ番号）。
+// アウンの元シートは12コマ中9コマが「腕を下ろした自然体」の微差（3コマ×3セット）で、
+// 残り4・8・12コマ目だけが「両拳を胸元に引き寄せる」全く別ポーズになっていた
+// （本人が元シート画像を確認して指摘・2026-07-20）。AIが12コマを独立生成したことで
+// 起きた表記ゆれで、意図した呼吸アニメではないため、そのままループさせると
+// 117ms×1コマだけ別ポーズに「スナップ」して戻る＝腕が一瞬消えたように見える不具合になる。
+// 差分行列で実測（3-4間diff=810万 vs 通常コマ間diff=120〜150万・約6倍）した上で、
+// 該当3コマを直前の安定コマで置き換えることでスナップを解消する
+const FRAME_OVERRIDE = {
+  aum: { 4: 3, 8: 7, 12: 11 },
+}
+
+// 背景色の推定は「外周4隅の平均」だと、たまたま四隅の1つにキャラの足や影が
+// かかっているコマ（アウンの待機モーションで発生・2026-07-20発見）で平均が大きく
+// 歪み、背景除去がほぼ効かなくなる（白背景が丸ごと残る）事故につながる。
+// 外周全ピクセルの中央値（median）を使えば、外周の一部にキャラがかかっていても
+// 大多数を占める本来の背景色が中央値として残るため頑健になる。
+function estimateBgMedian(data, width, height) {
+  const rs = [], gs = [], bs = []
+  for (let x = 0; x < width; x++) {
+    for (const y of [0, height - 1]) {
+      const i = (y * width + x) * 4
+      rs.push(data[i]); gs.push(data[i + 1]); bs.push(data[i + 2])
+    }
+  }
+  for (let y = 0; y < height; y++) {
+    for (const x of [0, width - 1]) {
+      const i = (y * width + x) * 4
+      rs.push(data[i]); gs.push(data[i + 1]); bs.push(data[i + 2])
+    }
+  }
+  const median = (arr) => {
+    const s = [...arr].sort((a, b) => a - b)
+    return s[Math.floor(s.length / 2)]
+  }
+  return [median(rs), median(gs), median(bs)]
+}
+
 function removeBackground(data, width, height, tolerance = 34) {
-  const idx = (x, y) => (y * width + x) * 4
-  const corners = [idx(0, 0), idx(width - 1, 0), idx(0, height - 1), idx(width - 1, height - 1)]
-  const bg = [0, 1, 2].map((ch) => corners.reduce((s, i) => s + data[i + ch], 0) / 4)
+  const bg = estimateBgMedian(data, width, height)
   const isBg = (i) =>
     Math.abs(data[i] - bg[0]) <= tolerance &&
     Math.abs(data[i + 1] - bg[1]) <= tolerance &&
@@ -214,15 +260,22 @@ for (const sheet of SHEETS) {
     }
   }
 
-  // 縦位置は全12コマのunionで共通化（1つの連続モーションなのでシート全体で揃える）
-  const top = Math.max(0, Math.min(...cells.map((c) => c.b.minY)) - PAD)
-  const bottom = Math.min(cellH - 1, Math.max(...cells.map((c) => c.b.maxY)) + PAD)
-  const canvasH = bottom - top + 1
+  // 縦位置は「シート全体の絶対座標で揃える」のではなく、各コマの足元(maxY)を基準に揃える。
+  // 元の12コマ絵に呼吸アニメ的なわずかな上下動があると、シート共通の絶対top/bottomで
+  // 切り出した場合はその上下動がそのまま出力されてしまい、ゲーム内でNPCが浮き沈みして
+  // 見えるバグになる（2026-07-20発見）。maxY（足元）をコマごとに検出し、そこを基準に
+  // 一定のマージンを取って切り出すことで、キャンバス内での足元位置を全コマ共通に固定する。
+  const canvasH = Math.max(...cells.map((c) => c.b.maxY - c.b.minY + 1)) + PAD * 2
   const canvasW = Math.max(...cells.map((c) => c.b.maxX - c.b.minX + 1)) + PAD * 2
 
+  const override = FRAME_OVERRIDE[sheet.prefix] ?? {}
   for (let i = 0; i < cells.length; i++) {
-    const { data, info, b } = cells[i]
+    const srcIdx = (override[i + 1] ?? i + 1) - 1
+    const { data, info, b } = cells[srcIdx]
     const contentW = b.maxX - b.minX + 1
+    // このコマの足元(b.maxY)がキャンバス内で下からPAD分の位置に来るように上端を逆算する
+    let top = b.maxY - (canvasH - 1 - PAD)
+    top = Math.max(0, Math.min(top, cellH - canvasH))
     const frame = await sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } })
       .extract({ left: b.minX, top, width: contentW, height: canvasH })
       .toBuffer()
