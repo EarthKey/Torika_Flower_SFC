@@ -1,7 +1,7 @@
 import Phaser from 'phaser'
 import { GridScene, type CellSpec } from './GridScene'
 import { tryCompound, stageUnlocks, RECIPES, type Recipe, type SeedKind } from '../state/gameState'
-import { updateHud, showMessage, showToast, showRecipePicker } from '../ui/hud'
+import { updateHud, showMessage, showToast, showRecipePicker, showCompoundMovie } from '../ui/hud'
 import { playBgm } from '../state/bgm'
 
 // 工房内部。既存のコンセプト画（koubou.webp）をそのまま床に敷く一枚絵背景モード。
@@ -246,7 +246,7 @@ export class WorkshopScene extends GridScene {
     const ok = tryCompound(recipe)
     if (ok) {
       // タイムライン: ムービー（スキップ可）→ 完成表示（トースト＋メッセージ＋発光演出）の順（2026-07-19実機評）
-      this.playCompoundMovie(() => {
+      showCompoundMovie(() => {
         showToast(`${recipe.name}（${recipe.ruby}） ×1`, recipe.icon)
         showMessage(`${recipe.name}（${recipe.ruby}）が完成した！`)
         this.playCompleteEffect()
@@ -255,38 +255,6 @@ export class WorkshopScene extends GridScene {
       showMessage('メダルが足りない')
     }
     updateHud()
-  }
-
-  // 調合成功のカットインムービー（PV素材再利用の試験導入・2026-07-19）。
-  // 暗幕＋中央にムービーを1回再生。クリックでスキップ可。終了後にonEnd（発光演出）へつなぐ
-  private playCompoundMovie(onEnd: () => void) {
-    const cx = (30 * 32) / 2
-    const cy = (22 * 32) / 2
-    const backdrop = this.add
-      .rectangle(cx, cy, 30 * 32, 22 * 32, 0x000000, 0.65)
-      .setDepth(29)
-      .setInteractive() // 暗幕がクリックを受け、背後のマスへの移動予約を防ぐ
-    // 表示は実寸の50%（2026-07-19実機評: 大きすぎて画質の粗さが目立つため縮小）
-    const vw = 304
-    const vh = 232
-    const frame = this.add.rectangle(cx, cy, vw + 8, vh + 8).setStrokeStyle(4, 0xc9a24a).setDepth(30)
-    const vid = this.add.video(cx, cy, 'compound_movie').setDepth(30)
-    vid.setDisplaySize(vw, vh)
-    vid.play(false)
-
-    let finished = false // スキップ直後にVIDEO_COMPLETEが重複発火しても二重実行しない
-    const finish = () => {
-      if (finished) return
-      finished = true
-      vid.destroy()
-      frame.destroy()
-      backdrop.destroy()
-      onEnd()
-    }
-    vid.on(Phaser.GameObjects.Events.VIDEO_COMPLETE, finish)
-    backdrop.on('pointerdown', finish)
-    vid.setInteractive()
-    vid.on('pointerdown', finish)
   }
 
   // 調合成功: 発光スティックが完成薬置き場に現れ、ふわっと浮かんで消える（所持品へ入る）

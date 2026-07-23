@@ -22,6 +22,12 @@ export const options: GameOptions = {
   seVolume: 0.75,
 }
 
+// ズーム状態はシーンをまたいで保持する（GridSceneのインスタンス変数だと、シーンは遷移のたびに
+// 別インスタンスになるためリセットされてしまう。2026-07-21〜）。初期値はoptions.zoomDefault
+// （タイトル画面の「画面表示」設定）。以後はZキーでの切り替えがそのまま次のシーンへ引き継がれる。
+// hud.ts（調合ムービーの表示サイズ切替）からも参照するためoptions.tsに置く（2026-07-22）
+export const zoomState = { on: options.zoomDefault }
+
 // 音量変更をPhaser側（main.ts）へ通知する。BGM/SE実装後もこの1本で反映される
 export function notifyVolumeChanged() {
   window.dispatchEvent(new CustomEvent('torikka-volume-changed'))

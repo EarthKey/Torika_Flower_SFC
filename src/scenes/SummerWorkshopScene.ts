@@ -1,7 +1,7 @@
 import Phaser from 'phaser'
 import { GridScene, type CellSpec } from './GridScene'
 import { playBgm } from '../state/bgm'
-import { updateHud, showMessage, showToast, showRecipePicker } from '../ui/hud'
+import { updateHud, showMessage, showToast, showRecipePicker, showCompoundMovie } from '../ui/hud'
 import { tryCompound, RECIPES, type Recipe, type SeedKind } from '../state/gameState'
 import { WARP_ARRIVAL, WORKSHOP_WALK_MASK } from './WorkshopScene'
 
@@ -45,6 +45,7 @@ const WARP_PADS = [
 ] as const
 
 export class SummerWorkshopScene extends GridScene {
+  protected sceneSeason: 'spring' | 'summer' = 'summer'
   private recipeGroup!: Phaser.GameObjects.Container
   private recipeOpen = false
 
@@ -189,7 +190,7 @@ export class SummerWorkshopScene extends GridScene {
   private compound(recipe: Recipe) {
     const ok = tryCompound(recipe)
     if (ok) {
-      this.playCompoundMovie(() => {
+      showCompoundMovie(() => {
         showToast(`${recipe.name}（${recipe.ruby}） ×1`, recipe.icon)
         showMessage(`${recipe.name}（${recipe.ruby}）が完成した！`)
         this.playCompleteEffect()
@@ -198,36 +199,6 @@ export class SummerWorkshopScene extends GridScene {
       showMessage('メダルが足りない')
     }
     updateHud()
-  }
-
-  // 調合成功のカットインムービー（春のWorkshopSceneと同じ演出・同じ動画素材を再利用）
-  private playCompoundMovie(onEnd: () => void) {
-    const cx = (30 * 32) / 2
-    const cy = (22 * 32) / 2
-    const backdrop = this.add
-      .rectangle(cx, cy, 30 * 32, 22 * 32, 0x000000, 0.65)
-      .setDepth(29)
-      .setInteractive()
-    const vw = 304
-    const vh = 232
-    const frame = this.add.rectangle(cx, cy, vw + 8, vh + 8).setStrokeStyle(4, 0xc9a24a).setDepth(30)
-    const vid = this.add.video(cx, cy, 'compound_movie').setDepth(30)
-    vid.setDisplaySize(vw, vh)
-    vid.play(false)
-
-    let finished = false
-    const finish = () => {
-      if (finished) return
-      finished = true
-      vid.destroy()
-      frame.destroy()
-      backdrop.destroy()
-      onEnd()
-    }
-    vid.on(Phaser.GameObjects.Events.VIDEO_COMPLETE, finish)
-    backdrop.on('pointerdown', finish)
-    vid.setInteractive()
-    vid.on('pointerdown', finish)
   }
 
   // 調合成功: 発光スティックが完成薬置き場に現れ、ふわっと浮かんで消える（所持品へ入る）

@@ -47,6 +47,7 @@ const SEED_SPOTS: { cells: [number, number][]; kind: SeedKind }[] = [
 ]
 
 export class SummerSeedFieldScene extends GridScene {
+  protected sceneSeason: 'spring' | 'summer' = 'summer'
   private spotImages: Partial<Record<SeedKind, Phaser.GameObjects.Image>> = {}
 
   constructor() {

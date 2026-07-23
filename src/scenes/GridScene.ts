@@ -2,9 +2,9 @@ import Phaser from 'phaser'
 import { isDialogueOpen, advanceDialogue, openDialogue } from '../ui/dialogue'
 import { pickTalk } from '../state/dialogueData'
 import { recordTalk, recordGift, giveKusuri, markQuestDelivered, unlockIzunaStage1Dialogue, unlockSummer, type Recipe } from '../state/gameState'
-import { activeQuestFor, allStage1QuestsDelivered, allStage1QuestsEverDelivered, hasAnyKusuri, GIFT_TRUST_BONUS, type Quest } from '../state/questData'
-import { showMessage, showToast, showGiftPicker, updateHud } from '../ui/hud'
-import { options } from '../state/options'
+import { activeQuestFor, allStage1QuestsEverDelivered, hasAnyKusuri, GIFT_TRUST_BONUS, type Quest } from '../state/questData'
+import { showMessage, showToast, showGiftPicker, showQuestChoice, updateHud, isCompoundMovieOpen } from '../ui/hud'
+import { zoomState } from '../state/options'
 
 // 3エリア共通の土台。Tiled形式のマップJSON（scripts/make-maps.mjs が生成、
 // 将来はTiled GUIで編集）を読み込んで地形を描画し、通行判定つきの
@@ -18,6 +18,9 @@ const CHAR_HEIGHT = 64 * 1.1
 
 // scripts/make-maps.mjs のタイル並び順と対応（0始まり）。水・木・壁は通行不可
 const BLOCKED_TILE_IDS = new Set([3, 4, 6])
+
+// ズーム状態は options.ts の zoomState を参照（シーンをまたいで保持するため。2026-07-21〜。
+// 2026-07-22: hud.tsからも参照するためoptions.tsへ移設）
 
 export interface CellSpec {
   exit?: { targetScene: string; spawnCol: number; spawnRow: number }
@@ -34,6 +37,9 @@ export type Terrain =
   | { type: 'image'; textureKey: string; cols: number; rows: number; walkMask: string[] }
 
 export abstract class GridScene extends Phaser.Scene {
+  // マップ自体が属する季節。派生シーンで上書きする（春3シーンは既定のまま・夏3シーンは'summer'）。
+  // イズナのように春夏両方に配置されるNPCの会話season判定に使う（2026-07-21〜。§dialogueData.pickTalk）
+  protected sceneSeason: 'spring' | 'summer' = 'spring'
   protected cols = 0
   protected rows = 0
   private terrain: Terrain
@@ -62,8 +68,6 @@ export abstract class GridScene extends Phaser.Scene {
   private path: { row: number; col: number }[] = []
   // クリック可能なUI要素（本棚の本など）が同じクリックを移動として処理しないための抑制フラグ
   protected suppressClickMove = false
-  // Zキーで切り替えるお試しズームモード（2倍・プレイヤー追従）
-  private zoomed = false
 
   constructor(key: string, terrain: Terrain, defaultSpawnCol: number, defaultSpawnRow: number) {
     super(key)
@@ -96,7 +100,6 @@ export abstract class GridScene extends Phaser.Scene {
     this.isMoving = false
     this.path = []
     this.suppressClickMove = false
-    this.zoomed = false
     this.buildMap()
     this.buildSpecials()
 
@@ -116,17 +119,18 @@ export abstract class GridScene extends Phaser.Scene {
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => this.handleClick(pointer))
 
     // Zキーでズームモード切り替え（2026-07-18）。2倍ズームでトリカを追従。
-    // オプション「画面表示: ズーム」ならシーン開始時からズーム状態にする
+    // 現在のズーム状態（zoomState、シーンをまたいで共有）をこのシーンにも即時反映する。
+    // これによりズーム中に工房・種の聖域などへ移動しても同じズーム状態が続く（2026-07-21〜）
     const zoomKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.Z)
-    zoomKey.on('down', () => this.setZoomMode(!this.zoomed, true))
-    if (options.zoomDefault) this.setZoomMode(true, false)
+    zoomKey.on('down', () => this.setZoomMode(!zoomState.on, true))
+    this.setZoomMode(zoomState.on, false)
 
     this.onReady()
   }
 
   // ズームモードの適用（animate=falseなら即時切り替え。シーン開始時用）
   private setZoomMode(on: boolean, animate: boolean) {
-    this.zoomed = on
+    zoomState.on = on
     const cam = this.cameras.main
     if (on) {
       cam.setBounds(0, 0, this.cols * TILE, this.rows * TILE)
@@ -284,29 +288,41 @@ export abstract class GridScene extends Phaser.Scene {
   private startTalk(npc: { img: Phaser.GameObjects.Image; chara: string; reacting: boolean }) {
     if (isDialogueOpen() || npc.reacting) return
 
-    // 薬依頼（§9-8）: 薬を1個でも調合済みで未達成の依頼があれば、通常会話より優先して
-    // 症状ヒントの依頼会話を流す（達成するまで何度でも聞き直せる）
+    // 薬依頼（§9-8）: 薬を1個でも調合済みで未達成の依頼があれば選択肢を出す。
+    // 以前は症状ヒントの依頼会話に固定していたが、達成するまで毎回同じ話しか聞けず
+    // 世間話に分岐できなかったため、2026-07-22本人指示で選択制に変更した
     const quest = activeQuestFor(npc.chara)
     if (quest) {
       this.playGreet(npc)
-      openDialogue(
-        quest.requestLines.map((l) => ({ speaker: quest.chara, name: quest.name, face: l.face, text: l.text })),
+      showQuestChoice(
         () => {
-          recordTalk(npc.chara)
-          if (!hasAnyKusuri()) {
-            showMessage('渡せるお薬を持っていない。工房で調合してから、また話しかけよう')
-            return
-          }
-          showGiftPicker(
-            (recipe) => this.giveTo(quest, recipe),
-            () => showMessage('お薬はいつでも渡せる。もう一度話しかければ、症状も聞き直せる'),
+          openDialogue(
+            quest.requestLines.map((l) => ({ speaker: quest.chara, name: quest.name, face: l.face, text: l.text })),
+            () => {
+              recordTalk(npc.chara)
+              if (!hasAnyKusuri()) {
+                showMessage('渡せるお薬を持っていない。工房で調合してから、また話しかけよう')
+                return
+              }
+              showGiftPicker(
+                (recipe) => this.giveTo(quest, recipe),
+                () => showMessage('お薬はいつでも渡せる。もう一度話しかければ、症状も聞き直せる'),
+              )
+            },
           )
         },
+        () => this.startNormalTalk(npc),
       )
       return
     }
 
-    const talk = pickTalk(npc.chara)
+    this.startNormalTalk(npc)
+  }
+
+  // 通常の世間話（信頼度で解放されたプールからローテーション選択）。
+  // 依頼中でも「世間話をする」を選べばこちらに合流する（2026-07-22〜）
+  private startNormalTalk(npc: { img: Phaser.GameObjects.Image; chara: string; reacting: boolean }) {
+    const talk = pickTalk(npc.chara, this.sceneSeason)
     if (!talk) {
       showMessage('……（今は話すことがないようだ）')
       return
@@ -354,11 +370,11 @@ export abstract class GridScene extends Phaser.Scene {
     recordGift(quest.chara, GIFT_TRUST_BONUS)
     // ステージ1の3依頼が揃った瞬間にイズナの深い会話を開放（§9-8。イズナ本人への依頼は無いので
     // 他キャラへの依頼達成のたびにここで判定する）。同じトリガーで夏の季節の門も解放する
-    // （§2解放条件・2026-07-19確定: 依頼を全キャラ分渡し終えると次ステージが開く。解放は一度きり）
-    if (allStage1QuestsDelivered()) unlockIzunaStage1Dialogue()
-    // 夏の門は「過去に一度でも3件渡し終えた」判定（24時間以内判定だと、達成から
-    // 時間が経ったセーブや実装前に達成済みだった旧セーブで解放されないため）
-    if (allStage1QuestsEverDelivered() && unlockSummer()) {
+    // （§2解放条件・2026-07-19確定: 依頼を全キャラ分渡し終えると次ステージが開く。解放は一度きり。
+    // 依頼が一発完結制になったため、渡し終えた状態はそのまま維持される＝判定は一度trueになれば以後もtrue）
+    const stage1Complete = allStage1QuestsEverDelivered()
+    if (stage1Complete) unlockIzunaStage1Dialogue()
+    if (stage1Complete && unlockSummer()) {
       showMessage('遠くで、重い門の開く音がした……。里の右上にある「季節の門」が開いたようだ！')
     }
     updateHud()
@@ -421,6 +437,15 @@ export abstract class GridScene extends Phaser.Scene {
   }
 
   update() {
+    // 調合ムービー表示中は移動・アクションを止める。スキップはhud.ts側のkeydownリスナーが
+    // 担当するため、ここではSPACEのJustDownフラグだけ消費してムービー終了直後に
+    // 調合台への再アクションが誤発火しないようにする（2026-07-22修正）
+    if (isCompoundMovieOpen()) {
+      this.path = []
+      Phaser.Input.Keyboard.JustDown(this.actionKey)
+      return
+    }
+
     // 会話ウインドウ表示中は移動・アクションを止め、Spaceキーはページ送りに使う
     if (isDialogueOpen()) {
       this.path = []

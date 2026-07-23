@@ -86,9 +86,37 @@ export function mountHud() {
   document.body.appendChild(cardEl)
 }
 
-// 解説カードの中身を組み立てて表示する（§9-9: クリックすればいつでも見られる簡易図鑑）
+// 解説カードの中身を組み立てて表示する（§9-9: クリックすればいつでも見られる簡易図鑑）。
+// settei（見開き2枚の紹介イラスト）が用意されている処方はそちらを、まだ無い処方は
+// 従来どおりドット絵アイコン＋テキストのカードを表示する（2026-07-21・段階導入）
 function showKusuriCard(r: Recipe) {
   if (!cardEl) return
+  if (r.settei) {
+    const [page1, page2] = r.settei
+    cardEl.innerHTML = `
+      <div style="
+        display: flex; flex-direction: column; align-items: center; gap: 14px;
+        max-width: min(980px, 96vw); max-height: 92vh; overflow-y: auto;
+      ">
+        <div style="display: flex; flex-wrap: nowrap; justify-content: center; gap: 16px; max-width: 100%; overflow-x: auto;">
+          <img src="${page1}" style="width: min(460px, 46vw); border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,0.6);">
+          <img src="${page2}" style="width: min(460px, 46vw); border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,0.6);">
+        </div>
+        <div style="
+          background: rgba(20,15,10,0.96); color: #f2e6c8; border: 3px solid #c9a24a; border-radius: 10px;
+          padding: 12px 22px; font-family: monospace; text-align: center;
+        ">
+          <div style="font-size: 12px; color: #a89468;">実際に市販されている製品名の一例（参考）</div>
+          <div style="margin-top: 4px;">
+            <span style="border: 2px solid #c9a24a; border-radius: 999px; padding: 2px 14px; font-size: 18px; color: #ffe9a8;">${r.numberLabel}</span>
+          </div>
+          <div style="margin-top: 10px; font-size: 13px; color: #a89468;">画面のどこかをクリックでとじる</div>
+        </div>
+      </div>
+    `
+    cardEl.style.display = 'flex'
+    return
+  }
   const costRow = (Object.entries(r.cost) as [SeedKind, number][])
     .map(([kind, n]) => `${icon(`assets/items/medal_${kind}.png`)}${KIND_LABELS_RUBY[kind]}×${n}`)
     .join('　')
@@ -106,7 +134,8 @@ function showKusuriCard(r: Recipe) {
         <div style="font-size: 30px; font-weight: bold; line-height: 1.3;">
           <ruby>${r.name}<rt style="font-size: 13px;">${r.ruby}</rt></ruby>
         </div>
-        <div style="margin-top: 8px;">
+        <div style="margin-top: 8px; font-size: 12px; color: #a89468;">実際に市販されている製品名の一例（参考）</div>
+        <div style="margin-top: 4px;">
           <span style="border: 2px solid #c9a24a; border-radius: 999px; padding: 2px 14px; font-size: 18px; color: #ffe9a8;">${r.numberLabel}</span>
         </div>
         <div style="margin-top: 14px; font-size: 18px; color: #d8c8a8;">つかう生薬（しょうやく）: ${costRow}</div>
@@ -179,6 +208,51 @@ export function showRecipePicker(onPick: (recipe: Recipe) => void) {
     })
   })
   pickerEl.style.display = 'flex'
+}
+
+// ── 依頼中の話しかけ分岐（薬の話／世間話） ──────────
+// 未達成の依頼がある間、話しかけるたび症状ヒントの依頼会話に固定されてしまい、
+// 世間話に一切分岐できなかった問題への対応（2026-07-22本人指示）。
+// 依頼が残っていても、世間話を選べば通常の会話プールに合流できるようにする
+
+let questChoiceEl: HTMLDivElement | null = null
+
+export function showQuestChoice(onQuest: () => void, onChat: () => void) {
+  if (!questChoiceEl) {
+    questChoiceEl = document.createElement('div')
+    questChoiceEl.id = 'quest-choice'
+    questChoiceEl.style.cssText = `
+      position: fixed; inset: 0; display: none;
+      align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.55); z-index: 40;
+    `
+    document.body.appendChild(questChoiceEl)
+  }
+  const el = questChoiceEl
+  const close = () => { el.style.display = 'none' }
+  el.innerHTML = `
+    <div style="
+      display: flex; flex-direction: column; gap: 10px;
+      max-width: min(420px, 90vw);
+      background: rgba(20,15,10,0.96); color: #f2e6c8;
+      border: 3px solid #8a6a3a; border-radius: 10px;
+      padding: 18px 20px; font-family: monospace;
+    ">
+      <div data-choice="quest" style="
+        padding: 12px 16px; border: 2px solid #c9a24a; border-radius: 8px;
+        cursor: pointer; text-align: center; font-size: 20px;
+        background: rgba(40,30,18,0.6);
+      ">お薬の話をする</div>
+      <div data-choice="chat" style="
+        padding: 12px 16px; border: 2px solid #5a4c34; border-radius: 8px;
+        cursor: pointer; text-align: center; font-size: 20px; color: #d8c8a8;
+        background: rgba(40,30,18,0.4);
+      ">世間話をする</div>
+    </div>
+  `
+  el.querySelector('[data-choice="quest"]')?.addEventListener('click', () => { close(); onQuest() })
+  el.querySelector('[data-choice="chat"]')?.addEventListener('click', () => { close(); onChat() })
+  el.style.display = 'flex'
 }
 
 // ── 薬渡しウインドウ（薬依頼§9-8。NPCの依頼会話のあとに開く） ──────────
@@ -259,6 +333,67 @@ export function showGiftPicker(onPick: (recipe: Recipe) => void, onCancel?: () =
   giftEl.style.display = 'flex'
 }
 
+// ── 調合成功のカットインムービー（§9-9・PV素材再利用） ──────────
+// 元はPhaserのworld-space動画として実装していたが、カメラズーム（2倍）と一緒に拡大されて
+// 画面からはみ出す不具合があった（2026-07-21報告）。他のオーバーレイ（レシピ選択・薬渡し等）と
+// 同じくDOM要素で実装し直し、カメラのズーム・スクロールとは独立させた。
+// 2026-07-22改修: 通常表示を304×232→456×348（1.5倍）に変更。ズームモード中はもともと
+// 456×348だったため、現状は通常時・ズーム時とも同じ大きさで表示する
+
+let compoundEl: HTMLDivElement | null = null
+let movieOpen = false
+
+// GridScene.update()から参照（ムービー表示中はSPACE等のゲーム内アクションを無視するため）
+export function isCompoundMovieOpen(): boolean {
+  return movieOpen
+}
+
+export function showCompoundMovie(onEnd: () => void) {
+  if (!compoundEl) {
+    compoundEl = document.createElement('div')
+    compoundEl.id = 'compound-movie'
+    compoundEl.style.cssText = `
+      position: fixed; inset: 0; display: none;
+      align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.65); z-index: 40; cursor: pointer;
+    `
+    document.body.appendChild(compoundEl)
+  }
+  const el = compoundEl
+
+  movieOpen = true
+  let finished = false
+  // キャプチャフェーズで奪い、Phaser側のkeydownリスナー（bubbleフェーズ・windowに登録）へ
+  // このイベントが届く前に止める。これをしないとSPACEでスキップした同じキー入力を
+  // Phaserの調合台アクションが拾ってしまい、閉じた直後にもう一度調合が始まってしまう
+  const onKeyDown = (e: KeyboardEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
+    finish()
+  }
+  const finish = () => {
+    if (finished) return
+    finished = true
+    movieOpen = false
+    window.removeEventListener('keydown', onKeyDown, true)
+    el.style.display = 'none'
+    el.innerHTML = ''
+    onEnd()
+  }
+
+  const width = 456
+  const height = 348
+  el.innerHTML = `
+    <video src="assets/effects/compound_movie.mp4" autoplay playsinline
+      style="width: ${width}px; height: ${height}px; border: 4px solid #c9a24a; border-radius: 4px; background: #000;">
+    </video>
+  `
+  el.querySelector('video')?.addEventListener('ended', finish)
+  el.addEventListener('click', finish, { once: true })
+  window.addEventListener('keydown', onKeyDown, true)
+  el.style.display = 'flex'
+}
+
 function refreshSoundButton() {
   if (!soundBtn) return
   soundBtn.textContent = options.masterVolume >= 1 ? '🔊' : options.masterVolume >= 0.5 ? '🔉' : '🔇'
@@ -274,6 +409,8 @@ export function setHudVisible(visible: boolean) {
   if (!visible && cardEl) cardEl.style.display = 'none' // タイトルへ戻るとき解説カードも閉じる
   if (!visible && pickerEl) pickerEl.style.display = 'none'
   if (!visible && giftEl) giftEl.style.display = 'none'
+  if (!visible && questChoiceEl) questChoiceEl.style.display = 'none'
+  if (!visible && compoundEl) { compoundEl.style.display = 'none'; compoundEl.innerHTML = ''; movieOpen = false }
 }
 
 // 獲得トースト: アイコン＋テキストの小さな通知をふわっと出して自動で消す
@@ -332,10 +469,11 @@ export function updateHud() {
   const kinds = visibleKinds()
   const seedRow = kinds.map((k) => `${icon(`assets/items/seed_bag_${k}.png`)}${s.seeds[k]}`).join('')
   const medalRow = kinds.map((k) => `${icon(`assets/items/medal_${k}.png`)}${s.medals[k]}`).join('')
-  // 薬はアイコンのみ（§9-9）。所持済み=クリックで解説カード、未所持=グレーの「?」（収集要素）
+  // 薬はアイコンのみ（§9-9）。一度でも調合したことがあればクリックで解説カード（所持数0でも図鑑として残す・2026-07-21〜）、
+  // 未調合=グレーの「?」（収集要素）。所持数の増減はkusuriCountsだが、表示の可否はkusuriEverObtainedで判定する
   const kusuriRow = RECIPES.map((r) => {
     const count = s.kusuriCounts[r.id] ?? 0
-    return count > 0
+    return s.kusuriEverObtained[r.id]
       ? `<img src="${r.icon}" data-recipe="${r.id}" title="クリックで解説" style="${ICON_STYLE}pointer-events:auto;cursor:pointer;">${count}`
       : `<img src="assets/items/kusuri/kusuri_unknown.png" style="${ICON_STYLE}opacity:0.55;">?`
   }).join('')

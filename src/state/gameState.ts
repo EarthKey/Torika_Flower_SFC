@@ -1,16 +1,41 @@
 // プレイヤーの所持品・進行状態。まだ絵がない段階なので純粋なロジックだけを持つ。
 
-// ステージ1（春・甲賀）3種＋ステージ2（夏・風魔）3種。ステージが増えるたびにここへ追加する
-export type SeedKind = 'kanzou' | 'syoubaku' | 'taisou' | 'syakuyaku' | 'keihi' | 'syoukyou'
+// 2026-07-22 テストプレイ用の一時措置（本人依頼）: 薬依頼検証中は生薬メダル・完成薬の所持数を
+// 99固定にし、調合・受け渡しで消費しても99に戻す。確認が終わったらfalseに戻すこと
+const TEST_UNLIMITED_KUSURI = true
+
+// ステージ1（春・甲賀）3種＋ステージ2（夏・風魔）3種＋ステージ3（秋・雑賀）3種＋ステージ4（冬・伊賀）3種。
+// ステージが増えるたびにここへ追加する。乾姜(kankyou)は生姜と同一植物のため種・成長段階の
+// アセットは生姜(syoukyou)のものを流用する方針（2026-07-23本人指示）だが、レシピ上は
+// 生姜と別数量で消費する生薬なのでSeedKind自体は独立させる（メダル絵柄のみ新規）
+export type SeedKind =
+  | 'kanzou'
+  | 'syoubaku'
+  | 'taisou'
+  | 'syakuyaku'
+  | 'keihi'
+  | 'syoukyou'
+  | 'mao'
+  | 'kyounin'
+  | 'kakkon'
+  | 'kankyou'
+  | 'ninjin'
+  | 'byakujutsu'
 
 // 種類ごとにどのステージ解放で出現するか（HUDの表示範囲の判定に使う。§2解放条件と連動）
-export const KIND_STAGE: Record<SeedKind, 'spring' | 'summer'> = {
+export const KIND_STAGE: Record<SeedKind, 'spring' | 'summer' | 'autumn' | 'winter'> = {
   kanzou: 'spring',
   syoubaku: 'spring',
   taisou: 'spring',
   syakuyaku: 'summer',
   keihi: 'summer',
   syoukyou: 'summer',
+  mao: 'autumn',
+  kyounin: 'autumn',
+  kakkon: 'autumn',
+  kankyou: 'winter',
+  ninjin: 'winter',
+  byakujutsu: 'winter',
 }
 
 // 画面表示用の生薬名（メッセージ・トーストで使う。内部キーのローマ字を露出させない）
@@ -21,6 +46,12 @@ export const KIND_LABELS: Record<SeedKind, string> = {
   syakuyaku: '芍薬',
   keihi: '桂皮',
   syoukyou: '生姜',
+  mao: '麻黄',
+  kyounin: '杏仁',
+  kakkon: '葛根',
+  kankyou: '乾姜',
+  ninjin: '人参',
+  byakujutsu: '白朮',
 }
 
 // ふりがな付きの生薬名（2026-07-18）。漢方の読みは初見で読めないため、
@@ -32,6 +63,12 @@ export const KIND_LABELS_RUBY: Record<SeedKind, string> = {
   syakuyaku: '芍薬（しゃくやく）',
   keihi: '桂皮（けいひ）',
   syoukyou: '生姜（しょうきょう）',
+  mao: '麻黄（まおう）',
+  kyounin: '杏仁（きょうにん）',
+  kakkon: '葛根（かっこん）',
+  kankyou: '乾姜（かんきょう）',
+  ninjin: '人参（にんじん）',
+  byakujutsu: '白朮（びゃくじゅつ）',
 }
 
 export const gameState = {
@@ -42,17 +79,32 @@ export const gameState = {
     syakuyaku: 0,
     keihi: 0,
     syoukyou: 0,
+    mao: 0,
+    kyounin: 0,
+    kakkon: 0,
+    kankyou: 0,
+    ninjin: 0,
+    byakujutsu: 0,
   } as Record<SeedKind, number>,
   medals: {
-    kanzou: 0,
-    syoubaku: 0,
-    taisou: 0,
-    syakuyaku: 0,
-    keihi: 0,
-    syoukyou: 0,
+    kanzou: TEST_UNLIMITED_KUSURI ? 99 : 0,
+    syoubaku: TEST_UNLIMITED_KUSURI ? 99 : 0,
+    taisou: TEST_UNLIMITED_KUSURI ? 99 : 0,
+    syakuyaku: TEST_UNLIMITED_KUSURI ? 99 : 0,
+    keihi: TEST_UNLIMITED_KUSURI ? 99 : 0,
+    syoukyou: TEST_UNLIMITED_KUSURI ? 99 : 0,
+    mao: TEST_UNLIMITED_KUSURI ? 99 : 0,
+    kyounin: TEST_UNLIMITED_KUSURI ? 99 : 0,
+    kakkon: TEST_UNLIMITED_KUSURI ? 99 : 0,
+    kankyou: TEST_UNLIMITED_KUSURI ? 99 : 0,
+    ninjin: TEST_UNLIMITED_KUSURI ? 99 : 0,
+    byakujutsu: TEST_UNLIMITED_KUSURI ? 99 : 0,
   } as Record<SeedKind, number>,
   // 完成薬の所持数（処方IDごと・2026-07-19処方別化）。キーはRECIPESのid
   kusuriCounts: {} as Record<string, number>,
+  // 一度でも調合したことがある処方（2026-07-21〜）。渡して所持数が0に戻ってもtrueのまま保つ。
+  // HUDで「所持数0でも図鑑として表示し続けるか」の判定に使う（kusuriCountsは渡すたびに減るため流用不可）
+  kusuriEverObtained: {} as Record<string, boolean>,
   // 累計調合数（薬依頼システム§9-8の発動条件用。薬を渡して手持ちが0になっても発動は維持される）
   totalKusuriCrafted: 0,
 }
@@ -68,22 +120,34 @@ export function kusuriCountOf(recipeId: string): number {
 export interface NpcState {
   trust: number
   talkCount: number
+  trustGainedOn: string | null // 話しかけによるtrust+1を最後に得た日付キー（日次上限用・2026-07-22〜）
 }
 
 export const npcStates: Record<string, NpcState> = {
-  izuna: { trust: 0, talkCount: 0 },
-  sakuya: { trust: 0, talkCount: 0 },
-  xiaolan: { trust: 0, talkCount: 0 },
-  nemu: { trust: 0, talkCount: 0 },
-  janome: { trust: 0, talkCount: 0 },
-  aum: { trust: 0, talkCount: 0 },
-  ibuki: { trust: 0, talkCount: 0 },
+  izuna: { trust: 0, talkCount: 0, trustGainedOn: null },
+  sakuya: { trust: 0, talkCount: 0, trustGainedOn: null },
+  xiaolan: { trust: 0, talkCount: 0, trustGainedOn: null },
+  nemu: { trust: 0, talkCount: 0, trustGainedOn: null },
+  janome: { trust: 0, talkCount: 0, trustGainedOn: null },
+  aum: { trust: 0, talkCount: 0, trustGainedOn: null },
+  ibuki: { trust: 0, talkCount: 0, trustGainedOn: null },
 }
 
+// 日付キー（例: 2026-07-22）。話しかけ+1の日次上限判定に使う
+function todayKey(now = new Date()): string {
+  return `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`
+}
+
+// 話しかけるたびtalkCountは必ず+1（会話のローテーションに使うため）。
+// trust+1は1日1回まで（放置ゲームとして日をまたぐごとに信頼度が育っていく体験にするため。2026-07-22本人指示）
 export function recordTalk(chara: string) {
   const s = npcStates[chara]
   if (!s) return
-  s.trust++
+  const today = todayKey()
+  if (s.trustGainedOn !== today) {
+    s.trust++
+    s.trustGainedOn = today
+  }
   s.talkCount++
   persist()
 }
@@ -139,6 +203,7 @@ export function markQuestDelivered(questId: string) {
 export function giveKusuri(recipeId: string): boolean {
   if ((gameState.kusuriCounts[recipeId] ?? 0) <= 0) return false
   gameState.kusuriCounts[recipeId]--
+  if (TEST_UNLIMITED_KUSURI) gameState.kusuriCounts[recipeId] = 99 // テスト中は渡しても減らない
   persist()
   return true
 }
@@ -224,6 +289,12 @@ export const seedSpotCollectedAt: Record<SeedKind, number | null> = {
   syakuyaku: null,
   keihi: null,
   syoukyou: null,
+  mao: null,
+  kyounin: null,
+  kakkon: null,
+  kankyou: null,
+  ninjin: null,
+  byakujutsu: null,
 }
 
 export function seedCooldownRemainMs(kind: SeedKind, nowMs = Date.now()): number {
@@ -258,8 +329,15 @@ export interface Recipe {
   ruby: string
   cost: Partial<Record<SeedKind, number>>
   icon: string // 完成薬アイコン（§9-9・ツムラ実物準拠12バリエーション）
-  numberLabel: string // 解説カードの番号表示（例: ツムラ 72番）。番号なし処方は「古典処方」等
+  // 解説カードの番号表示（例: ツムラ 72番）。ゲームがその製品を直接取り扱っている・提携しているという
+  // 誤解を避けるため、UI側（hud.ts）で「実際に市販されている製品名の一例（参考）」と明示した上で表示する
+  // （2026-07-21・本人指摘）。番号なし処方は「古典処方」等
+  numberLabel: string
   desc: string // 解説カードの短い解説文（医学的表現はfact-check→本人確認の対象）
+  // 見開き2枚の紹介イラスト（2026-07-21〜。本人が色鉛筆風で個別生成）。
+  // [0]=かんたん紹介カード [1]=生薬の設定資料集ページ。未生成の処方はundefinedのまま
+  // （hud.ts側で従来のテキストカード表示にフォールバックする）
+  settei?: [string, string]
 }
 
 export const RECIPES: Recipe[] = [
@@ -272,6 +350,7 @@ export const RECIPES: Recipe[] = [
     icon: 'assets/items/kusuri/kusuri_kanzoto.png',
     numberLabel: 'クラシエ 401番',
     desc: 'たったひとつの生薬・甘草だけで作れる、いちばんシンプルなお薬。のどが痛いときや、はげしい咳に使われてきた。実物は甘草をたっぷり使うのが特徴。',
+    settei: ['assets/items/kusuri/settei/kanzoto_1.webp', 'assets/items/kusuri/settei/kanzoto_2.webp'],
   },
   {
     id: 'kanbakutaisouto',
@@ -281,6 +360,7 @@ export const RECIPES: Recipe[] = [
     icon: 'assets/items/kusuri/kusuri_kanbakutaisouto.png',
     numberLabel: 'ツムラ 72番',
     desc: '甘草・小麦・大棗、3つの生薬でつくる、心をやわらげるお薬。気持ちの昂ぶりや不安、子どもの夜泣きに古くから使われてきた。いちばん多く入っているのは小麦。',
+    settei: ['assets/items/kusuri/settei/kanbakutaisouto_1.webp', 'assets/items/kusuri/settei/kanbakutaisouto_2.webp'],
   },
   // ── ステージ2（夏・風魔）追加分（レシピ分量表.md 2026-07-19本人サイン済み） ──
   {
@@ -291,6 +371,7 @@ export const RECIPES: Recipe[] = [
     icon: 'assets/items/kusuri/kusuri_shakuyakukanzoto.png',
     numberLabel: 'ツムラ 68番',
     desc: '芍薬と甘草を同じ量だけ合わせる、たった2つの生薬のお薬。急に足がつったときの、こわばった筋肉をゆるめるために古くから使われてきた。効き目の速さでも知られている。',
+    settei: ['assets/items/kusuri/settei/shakuyakukanzoto_1.webp', 'assets/items/kusuri/settei/shakuyakukanzoto_2.webp'],
   },
   {
     id: 'keishito',
@@ -300,6 +381,7 @@ export const RECIPES: Recipe[] = [
     icon: 'assets/items/kusuri/kusuri_keishito.png',
     numberLabel: 'ツムラ 45番',
     desc: '桂皮・芍薬・大棗・生姜・甘草の5つの生薬でつくる、かぜのひき始めの基本処方。汗ばんでいるのに寒気がとれない、体力があまり強くない人の初期のかぜに向いている。',
+    settei: ['assets/items/kusuri/settei/keishito_1.webp', 'assets/items/kusuri/settei/keishito_2.webp'],
   },
   {
     id: 'keishikashakuyakuto',
@@ -309,6 +391,71 @@ export const RECIPES: Recipe[] = [
     icon: 'assets/items/kusuri/kusuri_keishikashakuyakuto.png',
     numberLabel: 'ツムラ 60番',
     desc: '桂枝湯に、芍薬をひとつだけ多く加えたお薬。おなかの張りや痛みをやわらげる働きがあり、桂枝湯との違いは芍薬の量だけ――分量ひとつで薬の役割が変わることを教えてくれる処方。',
+    settei: ['assets/items/kusuri/settei/keishikashakuyakuto_1.webp', 'assets/items/kusuri/settei/keishikashakuyakuto_2.webp'],
+  },
+  // ── ステージ3（秋・雑賀）追加分（レシピ分量表.md 2026-07-19本人サイン済み） ──
+  // numberLabel未検証（2026-07-23・本セッションでのfact-check未実施。実装前にレシピ分量表.mdと
+  // 同様の検証パスを通すことを推奨）
+  {
+    id: 'maoto',
+    name: '麻黄湯',
+    ruby: 'まおうとう',
+    cost: { mao: 2, kyounin: 2, keihi: 2, kanzou: 1 }, // 実比 麻黄5g:杏仁5g:桂皮4g:甘草1.5g の丸め
+    icon: 'assets/items/kusuri/kusuri_maoto.png',
+    numberLabel: 'ツムラ 27番',
+    desc: '麻黄・杏仁・桂皮・甘草の4つの生薬でつくる、かぜのひき始めのお薬。汗がまったく出ないのに寒気や節々の痛みが強い、体力のある人向けの処方として使われてきた。主役は麻黄と杏仁。',
+    settei: ['assets/items/kusuri/settei/maoto_1.webp', 'assets/items/kusuri/settei/maoto_2.webp'],
+  },
+  {
+    id: 'keishikakakkonto',
+    name: '桂枝加葛根湯',
+    ruby: 'けいしかかっこんとう',
+    cost: { kakkon: 2, keihi: 2, syakuyaku: 2, taisou: 2, syoukyou: 1, kanzou: 1 }, // 桂枝湯に葛根だけを加えた加減方
+    icon: 'assets/items/kusuri/kusuri_keishikakakkonto.png',
+    numberLabel: 'ツムラ 76番',
+    desc: '桂枝湯に、葛根をひとつだけ加えたお薬。汗ばんでいるのに首や肩がこわばるときに使われてきた。桂枝加芍薬湯が芍薬を増やしたのに対して、こちらは葛根を足すだけ――麻黄は入らないのが桂枝湯系との共通点。',
+    settei: ['assets/items/kusuri/settei/keishikakakkonto_1.webp', 'assets/items/kusuri/settei/keishikakakkonto_2.webp'],
+  },
+  {
+    id: 'kakkonto',
+    name: '葛根湯',
+    ruby: 'かっこんとう',
+    cost: { kakkon: 3, mao: 2, taisou: 2, keihi: 1, syakuyaku: 1, kanzou: 1, syoukyou: 1 }, // 実比 葛根4g:麻黄3g:大棗3g:桂皮2g:芍薬2g:甘草2g:生姜2g の丸め
+    icon: 'assets/items/kusuri/kusuri_kakkonto.png',
+    numberLabel: 'ツムラ 1番',
+    desc: '葛根・麻黄・大棗・桂皮・芍薬・甘草・生姜の7つの生薬を使う、かぜのひき始めの代表的なお薬。汗をかいていないのに首から肩がこわばるときに使われてきた。ステージ3でいちばん生薬を集める処方。',
+    settei: ['assets/items/kusuri/settei/kakkonto_1.webp', 'assets/items/kusuri/settei/kakkonto_2.webp'],
+  },
+  // ── ステージ4（冬・伊賀）追加分（レシピ分量表.md 2026-07-19本人サイン済み） ──
+  {
+    id: 'kanzokankyoto',
+    name: '甘草乾姜湯',
+    ruby: 'かんぞうかんきょうとう',
+    cost: { kanzou: 2, kankyou: 1 }, // 実比 甘草4g:乾姜2g の丸め
+    icon: 'assets/items/kusuri/kusuri_kanzokankyoto.png',
+    numberLabel: '古典処方（一般用医薬品の承認基準にもとづく2生薬）',
+    desc: '甘草と乾姜、たった2つの生薬でつくる、体の芯の冷えに向けたお薬。手足が冷えて口の中に唾がたまる、お手洗いが近い、といった症状に使われてきた。冬のステージらしいシンプルな処方。',
+    settei: ['assets/items/kusuri/settei/kanzokankyoto_1.webp', 'assets/items/kusuri/settei/kanzokankyoto_2.webp'],
+  },
+  {
+    id: 'ninjinto',
+    name: '人参湯',
+    ruby: 'にんじんとう',
+    cost: { ninjin: 2, kanzou: 2, kankyou: 2, byakujutsu: 2 }, // 実比 人参3g:甘草3g:乾姜3g:白朮3g（等量）の丸め
+    icon: 'assets/items/kusuri/kusuri_ninjinto.png',
+    numberLabel: 'ツムラ 32番',
+    desc: '人参・甘草・乾姜・白朮、同じ量ずつの4つの生薬でつくるお薬。胃腸が冷えて食欲がわかない、冷たいものですぐお腹をこわす、といった体質に使われてきた。ステージ4の締めくくりにふさわしい等量処方。',
+    settei: ['assets/items/kusuri/settei/ninjinto_1.webp', 'assets/items/kusuri/settei/ninjinto_2.webp'],
+  },
+  {
+    id: 'keishininjinto',
+    name: '桂枝人参湯',
+    ruby: 'けいしにんじんとう',
+    cost: { keihi: 2, kanzou: 2, byakujutsu: 2, ninjin: 2, kankyou: 1 }, // 実比 桂皮4g:甘草3g:白朮3g:人参3g:乾姜2g の丸め
+    icon: 'assets/items/kusuri/kusuri_keishininjinto.png',
+    numberLabel: 'ツムラ 82番',
+    desc: '人参湯に、桂皮をひとつ加えたお薬。冷えて頭痛がするうえ、おなかもゆるくなる、という2つの不調を同時にかかえているときに使われてきた。人参湯との違いは桂皮の有無だけ。',
+    settei: ['assets/items/kusuri/settei/keishininjinto_1.webp', 'assets/items/kusuri/settei/keishininjinto_2.webp'],
   },
 ]
 
@@ -321,9 +468,12 @@ export function canCompound(recipe: Recipe): boolean {
 export function tryCompound(recipe: Recipe): boolean {
   if (!canCompound(recipe)) return false
   for (const [kind, n] of Object.entries(recipe.cost) as [SeedKind, number][]) {
-    gameState.medals[kind] -= n
+    gameState.medals[kind] = TEST_UNLIMITED_KUSURI ? 99 : gameState.medals[kind] - n
   }
-  gameState.kusuriCounts[recipe.id] = (gameState.kusuriCounts[recipe.id] ?? 0) + 1
+  gameState.kusuriCounts[recipe.id] = TEST_UNLIMITED_KUSURI
+    ? 99
+    : (gameState.kusuriCounts[recipe.id] ?? 0) + 1
+  gameState.kusuriEverObtained[recipe.id] = true
   gameState.totalKusuriCrafted++
   persist()
   return true
@@ -344,6 +494,7 @@ interface SaveData {
   seeds: Record<SeedKind, number>
   medals: Record<SeedKind, number>
   kusuriCounts?: Record<string, number> // 処方別所持数（2026-07-19〜）
+  kusuriEverObtained?: Record<string, boolean> // 一度でも調合したか（2026-07-21〜。追加前のセーブには無い）
   totalKusuriCrafted?: number // 累計調合数（薬依頼の発動条件。追加前のセーブには無い）
   questDeliveredAt?: Record<string, number> // 薬依頼の達成時刻（追加前のセーブには無い）
   kusuri?: number // 旧形式（甘麦大棗湯のみの単一カウント）との互換用
@@ -362,6 +513,7 @@ function persist() {
       seeds: gameState.seeds,
       medals: gameState.medals,
       kusuriCounts: gameState.kusuriCounts,
+      kusuriEverObtained: gameState.kusuriEverObtained,
       totalKusuriCrafted: gameState.totalKusuriCrafted,
       questDeliveredAt,
       plots,
@@ -380,16 +532,18 @@ function persist() {
 function resetState() {
   for (const k of Object.keys(gameState.seeds) as SeedKind[]) {
     gameState.seeds[k] = 0
-    gameState.medals[k] = 0
+    gameState.medals[k] = TEST_UNLIMITED_KUSURI ? 99 : 0
     seedSpotCollectedAt[k] = null
   }
   gameState.kusuriCounts = {}
+  gameState.kusuriEverObtained = {}
   gameState.totalKusuriCrafted = 0
   for (const key of Object.keys(questDeliveredAt)) delete questDeliveredAt[key]
   for (const key of Object.keys(plots)) plots[key].plantedAtMs = null
   for (const key of Object.keys(npcStates)) {
     npcStates[key].trust = 0
     npcStates[key].talkCount = 0
+    npcStates[key].trustGainedOn = null
   }
   stageUnlocks.summer = false
 }
@@ -398,10 +552,21 @@ function applySaveData(data: SaveData) {
   resetState()
   Object.assign(gameState.seeds, data.seeds)
   Object.assign(gameState.medals, data.medals)
+  // テスト中は旧セーブの少ない所持数を読み込んでも99へ揃える
+  if (TEST_UNLIMITED_KUSURI) {
+    for (const k of Object.keys(gameState.medals) as SeedKind[]) gameState.medals[k] = 99
+  }
   // 旧セーブの移行: 単一カウント（kusuri）・最旧のboolean → 甘麦大棗湯の所持数として引き継ぐ
   gameState.kusuriCounts = data.kusuriCounts
     ? { ...data.kusuriCounts }
     : { kanbakutaisouto: data.kusuri ?? (data.hasKanbakutaisouto ? 1 : 0) }
+  // ever obtained移行: 記録がない旧セーブは、渡して0になった処方までは復元できないため
+  // 「今の所持数が1以上のもの」だけをtrueとして引き継ぐ（それ以外は次に調合した時点で改めてtrueになる）
+  gameState.kusuriEverObtained = data.kusuriEverObtained
+    ? { ...data.kusuriEverObtained }
+    : Object.fromEntries(
+        Object.entries(gameState.kusuriCounts).filter(([, v]) => (v ?? 0) > 0).map(([id]) => [id, true]),
+      )
   // 累計調合数の移行: 記録がない旧セーブは「まだ誰にも渡していない」ので所持数の合計と一致する
   gameState.totalKusuriCrafted =
     data.totalKusuriCrafted ??

@@ -73,6 +73,7 @@ const PLOT_LAYOUT: Record<string, { actRow: number; actCol: number; artX: number
 }
 
 export class SummerHomeScene extends GridScene {
+  protected sceneSeason: 'spring' | 'summer' = 'summer'
   private plotImages: Record<string, Phaser.GameObjects.Image> = {}
 
   constructor() {

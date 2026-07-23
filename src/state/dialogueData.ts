@@ -2,7 +2,7 @@
 // 仕様書§9-6「信頼度連動の会話プール」の土台。中身（会話本文）はJSON側だけで増やせる。
 
 import type { DialogueLine } from '../ui/dialogue'
-import { npcStates, stageUnlocks } from './gameState'
+import { npcStates } from './gameState'
 
 interface TalkLine {
   face: number
@@ -32,18 +32,16 @@ export function setDialogueData(json: Record<string, CharaDialogues | string>) {
   }
 }
 
-// 現在の季節（季節の門の解放状況から算出）。ステージ3・4を追加する際はここに積み増す
-function currentSeason(): 'spring' | 'summer' {
-  return stageUnlocks.summer ? 'summer' : 'spring'
-}
-
-// 信頼度で解放済み、かつ季節が合っているプール全体から、話しかけた回数でローテーション選択する
-export function pickTalk(chara: string): DialogueLine[] | null {
+// 信頼度で解放済み、かつ季節が合っているプール全体から、話しかけた回数でローテーション選択する。
+// seasonは「今どのステージの進行状況か」ではなく「話しかけた相手が今いるマップの季節」（2026-07-21〜）。
+// イズナは春マップにも夏マップにも同時に配置されているため、季節の門の解放状況（グローバル）ではなく
+// 呼び出し元シーン（GridScene.sceneSeason）が渡す値で判定する。これにより夏解放後に春の里へ戻っても
+// 春のイズナは春のセリフのままになる（NPCの立ち位置＝話す内容、という前提に合わせた）
+export function pickTalk(chara: string, season: 'spring' | 'summer'): DialogueLine[] | null {
   const charaData = data[chara]
   const state = npcStates[chara]
   if (!charaData || !state) return null
 
-  const season = currentSeason()
   const unlocked = charaData.pools
     .filter((pool) => state.trust >= pool.minTrust && (!pool.season || pool.season === season))
     .flatMap((pool) => pool.talks)
