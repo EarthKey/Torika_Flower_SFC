@@ -1,5 +1,9 @@
 // プレイヤーの所持品・進行状態。まだ絵がない段階なので純粋なロジックだけを持つ。
 
+// 4ステージ共通の季節タグ。GridScene.sceneSeason・dialogueData.pickTalk・
+// 依頼の季節タグ(unlockSeason)などで共通利用する（2026-07-24〜）
+export type Season = 'spring' | 'summer' | 'autumn' | 'winter'
+
 // 2026-07-22 テストプレイ用の一時措置（本人依頼）: 薬依頼検証中は生薬メダル・完成薬の所持数を
 // 99固定にし、調合・受け渡しで消費しても99に戻す。確認が終わったらfalseに戻すこと
 const TEST_UNLIMITED_KUSURI = true
@@ -23,7 +27,7 @@ export type SeedKind =
   | 'byakujutsu'
 
 // 種類ごとにどのステージ解放で出現するか（HUDの表示範囲の判定に使う。§2解放条件と連動）
-export const KIND_STAGE: Record<SeedKind, 'spring' | 'summer' | 'autumn' | 'winter'> = {
+export const KIND_STAGE: Record<SeedKind, Season> = {
   kanzou: 'spring',
   syoubaku: 'spring',
   taisou: 'spring',
@@ -131,6 +135,40 @@ export const npcStates: Record<string, NpcState> = {
   janome: { trust: 0, talkCount: 0, trustGainedOn: null },
   aum: { trust: 0, talkCount: 0, trustGainedOn: null },
   ibuki: { trust: 0, talkCount: 0, trustGainedOn: null },
+  shiba: { trust: 0, talkCount: 0, trustGainedOn: null },
+  nekomata: { trust: 0, talkCount: 0, trustGainedOn: null },
+  benten: { trust: 0, talkCount: 0, trustGainedOn: null },
+  anne: { trust: 0, talkCount: 0, trustGainedOn: null },
+  yui: { trust: 0, talkCount: 0, trustGainedOn: null },
+  hayate: { trust: 0, talkCount: 0, trustGainedOn: null },
+}
+
+// ── クロストーク解放数（春夏秋冬12キャラ共通・2026-07-24〜） ──────────
+// 依頼完遂で段階的に増える特別な深い会話の解放数。各キャラの目標値はquestData.CROSS_TALK_TARGETSに
+// 持たせ、季節タグ付き依頼を渡し終えるたびにquestData.checkCrossTalkUnlockから呼ばれる
+export const npcCrossTalk: Record<string, number> = {
+  sakuya: 0,
+  xiaolan: 0,
+  nemu: 0,
+  janome: 0,
+  aum: 0,
+  ibuki: 0,
+  shiba: 0,
+  nekomata: 0,
+  benten: 0,
+  anne: 0,
+  yui: 0,
+  hayate: 0,
+}
+
+// クロストーク解放数をtierまで引き上げる（すでに到達済みなら何もしない）。
+// 新規に引き上げたときだけtrueを返す（解放演出メッセージ用）
+export function unlockCrossTalkTier(chara: string, tier: number): boolean {
+  const current = npcCrossTalk[chara]
+  if (current === undefined || current >= tier) return false
+  npcCrossTalk[chara] = tier
+  persist()
+  return true
 }
 
 // 日付キー（例: 2026-07-22）。話しかけ+1の日次上限判定に使う
@@ -158,6 +196,11 @@ export function recordTalk(chara: string) {
 // dialogues.json側のminTrust:10プールを解禁する。通常の会話でも自然に到達しうる値ではないよう、
 // 話しかけ+1の蓄積とは別枠の一段大きい値にしてある
 export const IZUNA_STAGE1_UNLOCK_TRUST = 10
+// ステージ2〜4分の深い会話しきい値（2026-07-24追加）。段階を踏むごとに一段引き上げる方式は
+// ステージ1と同じ。値は通常の話しかけ+1蓄積では自然に到達しない大きさにしてある
+export const IZUNA_STAGE2_UNLOCK_TRUST = 20
+export const IZUNA_STAGE3_UNLOCK_TRUST = 30
+export const IZUNA_STAGE4_UNLOCK_TRUST = 40
 
 export function unlockIzunaStage1Dialogue() {
   const s = npcStates.izuna
@@ -166,16 +209,45 @@ export function unlockIzunaStage1Dialogue() {
   persist()
 }
 
+export function unlockIzunaStage2Dialogue() {
+  const s = npcStates.izuna
+  if (!s || s.trust >= IZUNA_STAGE2_UNLOCK_TRUST) return
+  s.trust = IZUNA_STAGE2_UNLOCK_TRUST
+  persist()
+}
+
+export function unlockIzunaStage3Dialogue() {
+  const s = npcStates.izuna
+  if (!s || s.trust >= IZUNA_STAGE3_UNLOCK_TRUST) return
+  s.trust = IZUNA_STAGE3_UNLOCK_TRUST
+  persist()
+}
+
+export function unlockIzunaStage4Dialogue() {
+  const s = npcStates.izuna
+  if (!s || s.trust >= IZUNA_STAGE4_UNLOCK_TRUST) return
+  s.trust = IZUNA_STAGE4_UNLOCK_TRUST
+  persist()
+}
+
 // ── ステージ解放（§2季節の門・2026-07-19確定） ──────────
 // 解放条件: そのステージの薬依頼を全キャラ分渡し終えること（ステージ1→2は咲耶・シャオラン・ネムの3依頼）。
 // 解放は一度きり（24時間ループで依頼が復活しても門は閉じない）ためセーブに含める
 
-export const stageUnlocks = { summer: false }
+export const stageUnlocks = { summer: false, autumn: false }
 
 // 夏の門を開く。今回の呼び出しで新規に開放されたときだけtrueを返す（開放の瞬間の演出メッセージ用）
 export function unlockSummer(): boolean {
   if (stageUnlocks.summer) return false
   stageUnlocks.summer = true
+  persist()
+  return true
+}
+
+// 秋の門を開く（ステージ2の3依頼を渡し終えると解放。仕組みはunlockSummerと同じ）
+export function unlockAutumn(): boolean {
+  if (stageUnlocks.autumn) return false
+  stageUnlocks.autumn = true
   persist()
   return true
 }
@@ -220,7 +292,7 @@ export interface PlotState {
   plantedAtMs: number | null // nullなら未植え
 }
 
-// 畑3区画（春の里・夏の里）。マスの担当作物は固定
+// 畑3区画×ステージ分（春の里・夏の里・秋の里）。マスの担当作物は固定
 export const plots: Record<string, PlotState> = {
   plot_kanzou: { crop: 'kanzou', plantedAtMs: null },
   plot_syoubaku: { crop: 'syoubaku', plantedAtMs: null },
@@ -228,6 +300,9 @@ export const plots: Record<string, PlotState> = {
   plot_syakuyaku: { crop: 'syakuyaku', plantedAtMs: null },
   plot_keihi: { crop: 'keihi', plantedAtMs: null },
   plot_syoukyou: { crop: 'syoukyou', plantedAtMs: null },
+  plot_mao: { crop: 'mao', plantedAtMs: null },
+  plot_kyounin: { crop: 'kyounin', plantedAtMs: null },
+  plot_kakkon: { crop: 'kakkon', plantedAtMs: null },
 }
 
 // 0=未植え, 1=種, 2=芽, 3=成長中, 4=収穫可能
@@ -501,8 +576,9 @@ interface SaveData {
   hasKanbakutaisouto?: boolean // 最旧形式（boolean）との互換用
   plots: Record<string, { crop: SeedKind; plantedAtMs: number | null }>
   npcStates?: Record<string, NpcState> // 会話システム追加前のセーブには無い
+  npcCrossTalk?: Record<string, number> // クロストーク解放数（2026-07-24追加。追加前のセーブには無い）
   seedSpotCollectedAt?: Record<SeedKind, number | null> // 採取クールダウン追加前のセーブには無い
-  stageUnlocks?: { summer?: boolean } // 季節の門の解放状態（2026-07-19追加。追加前のセーブには無い）
+  stageUnlocks?: { summer?: boolean; autumn?: boolean } // 季節の門の解放状態（2026-07-19追加。追加前のセーブには無い）
   lastPlayedMs?: number // スロット選択画面の要約表示用
 }
 
@@ -518,6 +594,7 @@ function persist() {
       questDeliveredAt,
       plots,
       npcStates,
+      npcCrossTalk,
       seedSpotCollectedAt,
       stageUnlocks,
       lastPlayedMs: Date.now(),
@@ -545,7 +622,9 @@ function resetState() {
     npcStates[key].talkCount = 0
     npcStates[key].trustGainedOn = null
   }
+  for (const key of Object.keys(npcCrossTalk)) npcCrossTalk[key] = 0
   stageUnlocks.summer = false
+  stageUnlocks.autumn = false
 }
 
 function applySaveData(data: SaveData) {
@@ -578,8 +657,10 @@ function applySaveData(data: SaveData) {
   for (const key of Object.keys(npcStates)) {
     if (data.npcStates?.[key]) Object.assign(npcStates[key], data.npcStates[key])
   }
+  if (data.npcCrossTalk) Object.assign(npcCrossTalk, data.npcCrossTalk)
   if (data.seedSpotCollectedAt) Object.assign(seedSpotCollectedAt, data.seedSpotCollectedAt)
   stageUnlocks.summer = data.stageUnlocks?.summer ?? false
+  stageUnlocks.autumn = data.stageUnlocks?.autumn ?? false
 }
 
 function readSlot(slot: number): SaveData | null {

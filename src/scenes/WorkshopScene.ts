@@ -64,6 +64,8 @@ const WARP_PADS = [
 function padExit(season: string): { targetScene: string; spawnCol: number; spawnRow: number } | null {
   if (season === '夏' && stageUnlocks.summer)
     return { targetScene: 'SummerWorkshopScene', spawnCol: WARP_ARRIVAL.col, spawnRow: WARP_ARRIVAL.row }
+  if (season === '秋' && stageUnlocks.autumn)
+    return { targetScene: 'AutumnWorkshopScene', spawnCol: WARP_ARRIVAL.col, spawnRow: WARP_ARRIVAL.row }
   return null
 }
 

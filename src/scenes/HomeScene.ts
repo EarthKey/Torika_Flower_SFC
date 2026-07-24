@@ -159,6 +159,9 @@ export class HomeScene extends GridScene {
   }
 
   protected onReady() {
+    // シーンインスタンスは再利用されるため、前回の門通過で立てたフラグを毎回リセットする
+    // （2026-07-24修正: リセットが無いと、一度門を通過した後は再訪しても二度と通れなくなるバグがあった）
+    this.enteringGate = false
     playBgm(this, 'bgm_stage1')
 
     // はじめから: フェードインが落ち着いてからトリカのチュートリアル会話を開く。

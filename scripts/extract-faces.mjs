@@ -29,9 +29,12 @@ const SHEETS = [
   // { src: 'C_Sakuya2.webp', prefix: 'sakuya' },
   // { src: 'C_Xiaoran (2).webp', prefix: 'xiaolan' },
   // { src: 'C_Nemu (2).webp', prefix: 'nemu' },
-  { src: 'C_Janome (2).webp', prefix: 'janome' }, // 蛇ノ目（ジャノメ）
-  { src: 'C_Aum (2).webp', prefix: 'aum' }, // アウン
-  { src: 'C_Ibuki (2).webp', prefix: 'ibuki' }, // イブキ
+  // { src: 'C_Janome (2).webp', prefix: 'janome' }, // 蛇ノ目（ジャノメ）
+  // { src: 'C_Aum (2).webp', prefix: 'aum' }, // アウン
+  // { src: 'C_Ibuki (2).webp', prefix: 'ibuki' }, // イブキ
+  { src: 'C_Shiba_face (2).webp', prefix: 'shiba' }, // 柴
+  { src: 'C_Nekomata_face (2).webp', prefix: 'nekomata' }, // 猫又
+  { src: 'C_Benten_face.webp', prefix: 'benten' }, // 弁天
 ]
 
 const COLS = 3

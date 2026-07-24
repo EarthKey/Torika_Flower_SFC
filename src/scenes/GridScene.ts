@@ -1,8 +1,30 @@
 import Phaser from 'phaser'
 import { isDialogueOpen, advanceDialogue, openDialogue } from '../ui/dialogue'
-import { pickTalk } from '../state/dialogueData'
-import { recordTalk, recordGift, giveKusuri, markQuestDelivered, unlockIzunaStage1Dialogue, unlockSummer, type Recipe } from '../state/gameState'
-import { activeQuestFor, allStage1QuestsEverDelivered, hasAnyKusuri, GIFT_TRUST_BONUS, type Quest } from '../state/questData'
+import { pickTalk, crossTalkLinesFor } from '../state/dialogueData'
+import {
+  recordTalk,
+  recordGift,
+  giveKusuri,
+  markQuestDelivered,
+  unlockIzunaStage1Dialogue,
+  unlockIzunaStage2Dialogue,
+  unlockIzunaStage3Dialogue,
+  unlockIzunaStage4Dialogue,
+  unlockSummer,
+  type Recipe,
+  type Season,
+} from '../state/gameState'
+import {
+  activeQuestFor,
+  allStage1QuestsEverDelivered,
+  allStage2QuestsEverDelivered,
+  allStage3QuestsEverDelivered,
+  allStage4QuestsEverDelivered,
+  checkCrossTalkUnlock,
+  hasAnyKusuri,
+  GIFT_TRUST_BONUS,
+  type Quest,
+} from '../state/questData'
 import { showMessage, showToast, showGiftPicker, showQuestChoice, updateHud, isCompoundMovieOpen } from '../ui/hud'
 import { zoomState } from '../state/options'
 
@@ -39,7 +61,7 @@ export type Terrain =
 export abstract class GridScene extends Phaser.Scene {
   // マップ自体が属する季節。派生シーンで上書きする（春3シーンは既定のまま・夏3シーンは'summer'）。
   // イズナのように春夏両方に配置されるNPCの会話season判定に使う（2026-07-21〜。§dialogueData.pickTalk）
-  protected sceneSeason: 'spring' | 'summer' = 'spring'
+  protected sceneSeason: Season = 'spring'
   protected cols = 0
   protected rows = 0
   private terrain: Terrain
@@ -377,9 +399,21 @@ export abstract class GridScene extends Phaser.Scene {
     if (stage1Complete && unlockSummer()) {
       showMessage('遠くで、重い門の開く音がした……。里の右上にある「季節の門」が開いたようだ！')
     }
+    // ステージ2〜4分のイズナの深い会話（2026-07-24追加）。仕組みはステージ1と同じ
+    // 「そのステージの3依頼が揃った瞬間」判定で、季節の門の解放とは別トリガー
+    if (allStage2QuestsEverDelivered()) unlockIzunaStage2Dialogue()
+    if (allStage3QuestsEverDelivered()) unlockIzunaStage3Dialogue()
+    if (allStage4QuestsEverDelivered()) unlockIzunaStage4Dialogue()
+    // クロストーク解放（2026-07-24追加）: このキャラの季節タグぶんの依頼が揃ったら段階的に解放。
+    // お礼の会話が閉じた直後に、解放されたクロストーク本文を続けて1回だけ再生する
+    const newCrossTalkTier = checkCrossTalkUnlock(quest.chara, quest.unlockSeason)
     updateHud()
     showToast(`${quest.name}に${recipe.name}を渡した`, recipe.icon)
-    openDialogue(quest.thanksLines.map(line))
+    openDialogue(quest.thanksLines.map(line), () => {
+      if (newCrossTalkTier === null) return
+      const crossTalk = crossTalkLinesFor(quest.chara, newCrossTalkTier)
+      if (crossTalk) openDialogue(crossTalk)
+    })
   }
 
   protected addCellImage(row: number, col: number, textureKey: string, size = 60): Phaser.GameObjects.Image {

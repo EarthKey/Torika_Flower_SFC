@@ -13,6 +13,7 @@ const OUT = new URL('../public/assets', import.meta.url).pathname.replace(/^\/([
 
 const KINDS = ['kanzou', 'syoubaku', 'taisou']
 const SUMMER_KINDS = ['syakuyaku', 'keihi', 'syoukyou']
+const AUTUMN_KINDS = ['mao', 'kyounin', 'kakkon']
 
 // ── 切り出し定義 ─────────────────────────────
 // rect: [left, top, width, height]（シート上のおおまかなセル範囲。正確さはトリムが吸収する）
@@ -129,6 +130,59 @@ const jobs = []
   for (const [name, rect] of Object.entries(panels)) {
     jobs.push({ src: 'd1.webp', rect, out: `items/${name}.png` })
   }
+}
+
+// ── ステージ3（秋・雑賀）: 麻黄・杏仁・葛根 ─────────────
+
+// 種シート（秋・テキストなし版）: 1536×1024、4列×3行グリッド（field/bag/mini/glow）。
+// summerと同じ列構成だがシート解像度が違うためCWは別値
+{
+  const CW = 1536 / 4
+  const CH = 1024 / 3
+  const cols = ['field', 'bag', 'mini', 'glow']
+  AUTUMN_KINDS.forEach((kind, r) => {
+    cols.forEach((col, c) => {
+      jobs.push({
+        src: 'seed_autumn.webp',
+        rect: [Math.round(c * CW), Math.round(r * CH), Math.round(CW), Math.round(CH)],
+        out: `items/seed_${col}_${kind}.png`,
+      })
+    })
+  })
+}
+
+// 植物の成長4段階（秋・テキストなし版）: 1536×1024、上段=拡大絵/下段=32×32簡略版
+// （画像目視: 上段はy=20〜560、下段はy=580〜1024付近で分かれている）
+{
+  const files = { mao: 'mao.webp', kyounin: 'kyounin.webp', kakkon: 'kakkon.webp' }
+  const CW = 1536 / 4
+  for (const kind of AUTUMN_KINDS) {
+    for (let stage = 1; stage <= 4; stage++) {
+      jobs.push({
+        src: files[kind],
+        rect: [Math.round((stage - 1) * CW), 20, Math.round(CW), 540],
+        out: `plants/${kind}_large_stage${stage}.png`,
+      })
+      jobs.push({
+        src: files[kind],
+        rect: [Math.round((stage - 1) * CW), 580, Math.round(CW), 420],
+        out: `plants/${kind}_stage${stage}.png`,
+      })
+    }
+  }
+}
+
+// 生薬メダル（秋・クリーンな3等分シート、テキストなし）: 1536×1024、横3列均等グリッド
+// 並び順は左から麻黄(緑)・杏仁(ピンク/アーモンド)・葛根(紫)
+{
+  const CW = 1536 / 3
+  AUTUMN_KINDS.forEach((kind, c) => {
+    jobs.push({
+      src: 'medal_autumn.webp',
+      rect: [Math.round(c * CW), 0, Math.round(CW), 1024],
+      out: `items/medal_${kind}.png`,
+    })
+  })
 }
 
 // トリカ三面図（C_Torika.webp）: 1448×1086、左から正面・左向き側面・背面

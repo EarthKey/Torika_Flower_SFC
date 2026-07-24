@@ -8,7 +8,7 @@
 // activeQuestForはそのキャラの「まだ渡していない最初の依頼」を返すので、渡し終えるたびに
 // 自然と次の依頼（ステージ3以降で追加予定の復習枠など）へ進む形になる
 
-import { gameState, questDeliveredAt } from './gameState'
+import { gameState, questDeliveredAt, unlockCrossTalkTier, type Season } from './gameState'
 
 // 薬プレゼントの好感度ボーナス（話しかけ+1に対する二段構え。§9-8）
 export const GIFT_TRUST_BONUS = 2
@@ -22,6 +22,9 @@ export interface Quest {
   id: string
   chara: string
   name: string // 会話ウインドウの表示名（dialogues.jsonと同じ表記）
+  // この依頼が「どの季節相当」か（薬依頼割当表.md 2026-07-23確定分が一次ソース。2026-07-24追加）。
+  // クロストーク解禁判定（GridScene.giveTo）で、そのキャラの季節タグ付き依頼を渡し終えたかの判定に使う
+  unlockSeason: Season
   recipeId: string // 正解の処方（RECIPESのid）
   requestLines: QuestLine[] // 症状ヒント2つを織り込んだ依頼会話（薬名は言わない）
   thanksLines: QuestLine[] // 正解を渡したときのお礼
@@ -32,6 +35,7 @@ export interface Quest {
 export const QUESTS: Quest[] = [
   {
     id: 'sakuya_kanzoto',
+    unlockSeason: 'spring',
     chara: 'sakuya',
     name: '咲耶（サクヤ）',
     recipeId: 'kanzoto',
@@ -51,6 +55,7 @@ export const QUESTS: Quest[] = [
   },
   {
     id: 'xiaolan_kanbakutaisouto',
+    unlockSeason: 'spring',
     chara: 'xiaolan',
     name: 'シャオラン',
     recipeId: 'kanbakutaisouto',
@@ -70,6 +75,7 @@ export const QUESTS: Quest[] = [
   },
   {
     id: 'nemu_kanbakutaisouto',
+    unlockSeason: 'spring',
     chara: 'nemu',
     name: 'ネム',
     recipeId: 'kanbakutaisouto',
@@ -94,6 +100,7 @@ export const QUESTS: Quest[] = [
 export const QUESTS_STAGE2: Quest[] = [
   {
     id: 'aum_shakuyakukanzoto',
+    unlockSeason: 'summer',
     chara: 'aum',
     name: 'アウン',
     recipeId: 'shakuyakukanzoto',
@@ -114,6 +121,7 @@ export const QUESTS_STAGE2: Quest[] = [
   },
   {
     id: 'janome_keishito',
+    unlockSeason: 'summer',
     chara: 'janome',
     name: '蛇ノ目（ジャノメ）',
     recipeId: 'keishito',
@@ -134,6 +142,7 @@ export const QUESTS_STAGE2: Quest[] = [
   },
   {
     id: 'ibuki_keishikashakuyakuto',
+    unlockSeason: 'summer',
     chara: 'ibuki',
     name: 'イブキ',
     recipeId: 'keishikashakuyakuto',
@@ -160,6 +169,7 @@ export const QUESTS_STAGE2: Quest[] = [
 export const QUESTS_SPRING_SEASONAL: Quest[] = [
   {
     id: 'sakuya_keishininjinto',
+    unlockSeason: 'summer',
     chara: 'sakuya',
     name: '咲耶（サクヤ）',
     recipeId: 'keishininjinto',
@@ -180,6 +190,7 @@ export const QUESTS_SPRING_SEASONAL: Quest[] = [
   },
   {
     id: 'sakuya_shakuyakukanzoto',
+    unlockSeason: 'autumn',
     chara: 'sakuya',
     name: '咲耶（サクヤ）',
     recipeId: 'shakuyakukanzoto',
@@ -200,6 +211,7 @@ export const QUESTS_SPRING_SEASONAL: Quest[] = [
   },
   {
     id: 'sakuya_kanbakutaisouto',
+    unlockSeason: 'winter',
     chara: 'sakuya',
     name: '咲耶（サクヤ）',
     recipeId: 'kanbakutaisouto',
@@ -220,6 +232,7 @@ export const QUESTS_SPRING_SEASONAL: Quest[] = [
   },
   {
     id: 'xiaolan_shakuyakukanzoto',
+    unlockSeason: 'summer',
     chara: 'xiaolan',
     name: 'シャオラン',
     recipeId: 'shakuyakukanzoto',
@@ -240,6 +253,7 @@ export const QUESTS_SPRING_SEASONAL: Quest[] = [
   },
   {
     id: 'xiaolan_kanzoto',
+    unlockSeason: 'autumn',
     chara: 'xiaolan',
     name: 'シャオラン',
     recipeId: 'kanzoto',
@@ -260,6 +274,7 @@ export const QUESTS_SPRING_SEASONAL: Quest[] = [
   },
   {
     id: 'xiaolan_kanzokankyoto',
+    unlockSeason: 'winter',
     chara: 'xiaolan',
     name: 'シャオラン',
     recipeId: 'kanzokankyoto',
@@ -280,6 +295,7 @@ export const QUESTS_SPRING_SEASONAL: Quest[] = [
   },
   {
     id: 'nemu_keishito',
+    unlockSeason: 'summer',
     chara: 'nemu',
     name: 'ネム',
     recipeId: 'keishito',
@@ -300,6 +316,7 @@ export const QUESTS_SPRING_SEASONAL: Quest[] = [
   },
   {
     id: 'nemu_keishikakakkonto',
+    unlockSeason: 'autumn',
     chara: 'nemu',
     name: 'ネム',
     recipeId: 'keishikakakkonto',
@@ -320,6 +337,7 @@ export const QUESTS_SPRING_SEASONAL: Quest[] = [
   },
   {
     id: 'nemu_kanzoto',
+    unlockSeason: 'winter',
     chara: 'nemu',
     name: 'ネム',
     recipeId: 'kanzoto',
@@ -344,6 +362,7 @@ export const QUESTS_SPRING_SEASONAL: Quest[] = [
 export const QUESTS_SUMMER_SEASONAL: Quest[] = [
   {
     id: 'janome_keishikakakkonto',
+    unlockSeason: 'autumn',
     chara: 'janome',
     name: '蛇ノ目（ジャノメ）',
     recipeId: 'keishikakakkonto',
@@ -364,6 +383,7 @@ export const QUESTS_SUMMER_SEASONAL: Quest[] = [
   },
   {
     id: 'janome_maoto',
+    unlockSeason: 'winter',
     chara: 'janome',
     name: '蛇ノ目（ジャノメ）',
     recipeId: 'maoto',
@@ -384,6 +404,7 @@ export const QUESTS_SUMMER_SEASONAL: Quest[] = [
   },
   {
     id: 'aum_keishikakakkonto',
+    unlockSeason: 'autumn',
     chara: 'aum',
     name: 'アウン',
     recipeId: 'keishikakakkonto',
@@ -404,6 +425,7 @@ export const QUESTS_SUMMER_SEASONAL: Quest[] = [
   },
   {
     id: 'aum_kakkonto',
+    unlockSeason: 'winter',
     chara: 'aum',
     name: 'アウン',
     recipeId: 'kakkonto',
@@ -424,6 +446,7 @@ export const QUESTS_SUMMER_SEASONAL: Quest[] = [
   },
   {
     id: 'ibuki_kanzokankyoto',
+    unlockSeason: 'autumn',
     chara: 'ibuki',
     name: 'イブキ',
     recipeId: 'kanzokankyoto',
@@ -444,6 +467,7 @@ export const QUESTS_SUMMER_SEASONAL: Quest[] = [
   },
   {
     id: 'ibuki_maoto',
+    unlockSeason: 'winter',
     chara: 'ibuki',
     name: 'イブキ',
     recipeId: 'maoto',
@@ -470,6 +494,7 @@ export const QUESTS_SUMMER_SEASONAL: Quest[] = [
 export const QUESTS_STAGE3: Quest[] = [
   {
     id: 'shiba_maoto',
+    unlockSeason: 'autumn',
     chara: 'shiba',
     name: '柴（シバ）',
     recipeId: 'maoto',
@@ -490,6 +515,7 @@ export const QUESTS_STAGE3: Quest[] = [
   },
   {
     id: 'shiba_keishikashakuyakuto',
+    unlockSeason: 'autumn',
     chara: 'shiba',
     name: '柴（シバ）',
     recipeId: 'keishikashakuyakuto',
@@ -510,6 +536,7 @@ export const QUESTS_STAGE3: Quest[] = [
   },
   {
     id: 'shiba_kanzoto',
+    unlockSeason: 'winter',
     chara: 'shiba',
     name: '柴（シバ）',
     recipeId: 'kanzoto',
@@ -530,6 +557,7 @@ export const QUESTS_STAGE3: Quest[] = [
   },
   {
     id: 'shiba_ninjinto',
+    unlockSeason: 'winter',
     chara: 'shiba',
     name: '柴（シバ）',
     recipeId: 'ninjinto',
@@ -550,6 +578,7 @@ export const QUESTS_STAGE3: Quest[] = [
   },
   {
     id: 'nekomata_kanzoto',
+    unlockSeason: 'autumn',
     chara: 'nekomata',
     name: '猫又（ねこまた）',
     recipeId: 'kanzoto',
@@ -570,6 +599,7 @@ export const QUESTS_STAGE3: Quest[] = [
   },
   {
     id: 'nekomata_keishikakakkonto',
+    unlockSeason: 'autumn',
     chara: 'nekomata',
     name: '猫又（ねこまた）',
     recipeId: 'keishikakakkonto',
@@ -590,6 +620,7 @@ export const QUESTS_STAGE3: Quest[] = [
   },
   {
     id: 'nekomata_shakuyakukanzoto',
+    unlockSeason: 'winter',
     chara: 'nekomata',
     name: '猫又（ねこまた）',
     recipeId: 'shakuyakukanzoto',
@@ -610,6 +641,7 @@ export const QUESTS_STAGE3: Quest[] = [
   },
   {
     id: 'nekomata_maoto',
+    unlockSeason: 'winter',
     chara: 'nekomata',
     name: '猫又（ねこまた）',
     recipeId: 'maoto',
@@ -630,6 +662,7 @@ export const QUESTS_STAGE3: Quest[] = [
   },
   {
     id: 'benten_kanzokankyoto',
+    unlockSeason: 'autumn',
     chara: 'benten',
     name: '弁天（べんてん）',
     recipeId: 'kanzokankyoto',
@@ -650,6 +683,7 @@ export const QUESTS_STAGE3: Quest[] = [
   },
   {
     id: 'benten_keishininjinto',
+    unlockSeason: 'autumn',
     chara: 'benten',
     name: '弁天（べんてん）',
     recipeId: 'keishininjinto',
@@ -670,6 +704,7 @@ export const QUESTS_STAGE3: Quest[] = [
   },
   {
     id: 'benten_kanzoto',
+    unlockSeason: 'winter',
     chara: 'benten',
     name: '弁天（べんてん）',
     recipeId: 'kanzoto',
@@ -690,6 +725,7 @@ export const QUESTS_STAGE3: Quest[] = [
   },
   {
     id: 'benten_kanbakutaisouto',
+    unlockSeason: 'winter',
     chara: 'benten',
     name: '弁天（べんてん）',
     recipeId: 'kanbakutaisouto',
@@ -716,6 +752,7 @@ export const QUESTS_STAGE3: Quest[] = [
 export const QUESTS_STAGE4: Quest[] = [
   {
     id: 'anne_keishikakakkonto',
+    unlockSeason: 'winter',
     chara: 'anne',
     name: '餡音（あんね）',
     recipeId: 'keishikakakkonto',
@@ -736,6 +773,7 @@ export const QUESTS_STAGE4: Quest[] = [
   },
   {
     id: 'anne_maoto',
+    unlockSeason: 'winter',
     chara: 'anne',
     name: '餡音（あんね）',
     recipeId: 'maoto',
@@ -756,6 +794,7 @@ export const QUESTS_STAGE4: Quest[] = [
   },
   {
     id: 'anne_kanzokankyoto',
+    unlockSeason: 'winter',
     chara: 'anne',
     name: '餡音（あんね）',
     recipeId: 'kanzokankyoto',
@@ -776,6 +815,7 @@ export const QUESTS_STAGE4: Quest[] = [
   },
   {
     id: 'yui_kanzokankyoto',
+    unlockSeason: 'winter',
     chara: 'yui',
     name: '結（ゆい）',
     recipeId: 'kanzokankyoto',
@@ -796,6 +836,7 @@ export const QUESTS_STAGE4: Quest[] = [
   },
   {
     id: 'yui_keishininjinto',
+    unlockSeason: 'winter',
     chara: 'yui',
     name: '結（ゆい）',
     recipeId: 'keishininjinto',
@@ -816,6 +857,7 @@ export const QUESTS_STAGE4: Quest[] = [
   },
   {
     id: 'yui_keishikakakkonto',
+    unlockSeason: 'winter',
     chara: 'yui',
     name: '結（ゆい）',
     recipeId: 'keishikakakkonto',
@@ -836,6 +878,7 @@ export const QUESTS_STAGE4: Quest[] = [
   },
   {
     id: 'hayate_maoto',
+    unlockSeason: 'winter',
     chara: 'hayate',
     name: 'ハヤテ',
     recipeId: 'maoto',
@@ -856,6 +899,7 @@ export const QUESTS_STAGE4: Quest[] = [
   },
   {
     id: 'hayate_shakuyakukanzoto',
+    unlockSeason: 'winter',
     chara: 'hayate',
     name: 'ハヤテ',
     recipeId: 'shakuyakukanzoto',
@@ -876,6 +920,7 @@ export const QUESTS_STAGE4: Quest[] = [
   },
   {
     id: 'hayate_keishikashakuyakuto',
+    unlockSeason: 'winter',
     chara: 'hayate',
     name: 'ハヤテ',
     recipeId: 'keishikashakuyakuto',
@@ -928,6 +973,58 @@ export function activeQuestFor(chara: string): Quest | null {
 // 一発完結制になったため「渡し終えた」＝「ずっとその状態」で、以前のような時間経過による揺り戻しはない
 export function allStage1QuestsEverDelivered(): boolean {
   return QUESTS.every((q) => questDeliveredAt[q.id] !== undefined)
+}
+
+// ステージ2の全依頼を「渡し終えているか」。秋の門の解放条件（§2）。仕組みはステージ1と同じ
+export function allStage2QuestsEverDelivered(): boolean {
+  return QUESTS_STAGE2.every((q) => questDeliveredAt[q.id] !== undefined)
+}
+
+// ステージ3（柴・猫又・弁天、各4件）の全依頼を渡し終えているか。イズナの深い会話ステージ3分の解放条件。
+// 冬への門はまだ実装対象外（2026-07-24時点でステージ4は解放判定なし・依頼データのみ先行実装）
+export function allStage3QuestsEverDelivered(): boolean {
+  return QUESTS_STAGE3.every((q) => questDeliveredAt[q.id] !== undefined)
+}
+
+// ステージ4（餡音・結・ハヤテ、各3件）の全依頼を渡し終えているか。イズナの深い会話ステージ4分の解放条件
+export function allStage4QuestsEverDelivered(): boolean {
+  return QUESTS_STAGE4.every((q) => questDeliveredAt[q.id] !== undefined)
+}
+
+// ── クロストーク解放（2026-07-24〜） ──────────────────
+// 12キャラ（春夏秋冬の担当3体ずつ）共通のクロストーク仕組み。各キャラの季節タグ付き依頼を
+// 「その季節ぶん」全部渡し終えるたびに、目標値まで解放数を引き上げる。
+// 目標値は本人設計（2026-07-24）: 春組=春夏秋冬で1→2→3→4／夏組=夏(初期2)→秋3→冬4／
+// 秋組=秋(初期2)→冬4／冬組=冬で4本まとめて解放。全キャラ最終的に4本で揃う
+export const CROSS_TALK_TARGETS: Record<string, Partial<Record<Season, number>>> = {
+  sakuya: { spring: 1, summer: 2, autumn: 3, winter: 4 },
+  xiaolan: { spring: 1, summer: 2, autumn: 3, winter: 4 },
+  nemu: { spring: 1, summer: 2, autumn: 3, winter: 4 },
+  janome: { summer: 2, autumn: 3, winter: 4 },
+  aum: { summer: 2, autumn: 3, winter: 4 },
+  ibuki: { summer: 2, autumn: 3, winter: 4 },
+  shiba: { autumn: 2, winter: 4 },
+  nekomata: { autumn: 2, winter: 4 },
+  benten: { autumn: 2, winter: 4 },
+  anne: { winter: 4 },
+  yui: { winter: 4 },
+  hayate: { winter: 4 },
+}
+
+// そのキャラの「season相当」の依頼を全部渡し終えているか（該当依頼が1件も無ければfalse）
+function seasonQuestsDeliveredFor(chara: string, season: Season): boolean {
+  const relevant = ALL_QUESTS.filter((q) => q.chara === chara && q.unlockSeason === season)
+  if (relevant.length === 0) return false
+  return relevant.every((q) => questDeliveredAt[q.id] !== undefined)
+}
+
+// 依頼を渡した直後にGridScene.giveTo()から呼ぶ。新規に解放されたクロストークのtier番号を返す
+// （dialogues.json側のcrossTalkプールのキーと対応）。何も解放されなければnull
+export function checkCrossTalkUnlock(chara: string, season: Season): number | null {
+  const target = CROSS_TALK_TARGETS[chara]?.[season]
+  if (target === undefined) return null
+  if (!seasonQuestsDeliveredFor(chara, season)) return null
+  return unlockCrossTalkTier(chara, target) ? target : null
 }
 
 // 手持ちに1個でも薬があるか（依頼会話のあと薬渡しウインドウを開くかの判定）

@@ -2,7 +2,7 @@ import Phaser from 'phaser'
 import { GridScene, type CellSpec } from './GridScene'
 import { playBgm } from '../state/bgm'
 import { updateHud, showMessage, showToast, showRecipePicker, showCompoundMovie } from '../ui/hud'
-import { tryCompound, RECIPES, type Recipe, type SeedKind } from '../state/gameState'
+import { tryCompound, RECIPES, stageUnlocks, type Recipe, type SeedKind } from '../state/gameState'
 import { WARP_ARRIVAL, WORKSHOP_WALK_MASK } from './WorkshopScene'
 
 // 夏の工房内部（ステージ2）。koubou_summer.webpをそのまま床に敷く一枚絵背景モード。
@@ -36,13 +36,20 @@ const BOOK_POS = { row: 8, col: 18 }
 // 完成薬を演出で見せる位置（春の工房と同じく器のあいだ）
 const SHELF = { row: 7, col: 14 }
 
-// 四隅の転送陣（座標は春の工房koubou.jsonの値を仮流用。左上=春/右上=夏/左下=秋/右下=冬）
+// 四隅の転送陣（座標は春の工房koubou.jsonの値を仮流用。左上=春/右上=夏/左下=秋/右下=冬）。
+// 春=常時開通、秋=stageUnlocks.autumn連動でAutumnWorkshopSceneへ接続（2026-07-24。WorkshopScene.padExitと同じ方式）
 const WARP_PADS = [
   { season: '春', tex: 'warp_pink', row: 10, col: 11, exit: { targetScene: 'WorkshopScene', spawnCol: WARP_ARRIVAL.col, spawnRow: WARP_ARRIVAL.row } },
   { season: '夏', tex: 'warp_blue', row: 10, col: 18, exit: null }, // ここが夏の工房（現在地）
-  { season: '秋', tex: 'warp_yellow', row: 13, col: 11, exit: null }, // 秋の工房（未実装）
+  { season: '秋', tex: 'warp_yellow', row: 13, col: 11, exit: null }, // stageUnlocks.autumnで動的に接続（下のseasonExit参照）
   { season: '冬', tex: 'warp_green', row: 13, col: 18, exit: null }, // 冬の工房（未実装）
 ] as const
+
+function seasonExit(season: string): { targetScene: string; spawnCol: number; spawnRow: number } | null {
+  if (season === '秋' && stageUnlocks.autumn)
+    return { targetScene: 'AutumnWorkshopScene', spawnCol: WARP_ARRIVAL.col, spawnRow: WARP_ARRIVAL.row }
+  return null
+}
 
 export class SummerWorkshopScene extends GridScene {
   protected sceneSeason: 'spring' | 'summer' = 'summer'
@@ -65,8 +72,9 @@ export class SummerWorkshopScene extends GridScene {
       '20,15': { exit: { targetScene: 'SummerHomeScene', spawnCol: 21, spawnRow: 12 } },
     }
     for (const pad of WARP_PADS) {
-      specs[`${pad.row},${pad.col}`] = pad.exit
-        ? { exit: pad.exit }
+      const exit = pad.exit ?? seasonExit(pad.season)
+      specs[`${pad.row},${pad.col}`] = exit
+        ? { exit }
         : pad.season === '夏'
           ? { data: { message: 'ここは夏の工房の転送陣。今いる場所だ' } }
           : { data: { message: `${pad.season}の転送陣はまだ固く封印されている……` } }
@@ -94,7 +102,7 @@ export class SummerWorkshopScene extends GridScene {
       const img = this.add.image(pad.col * 32 + 16, pad.row * 32 + 16, `${pad.tex}_1`)
       this.fitImage(img, 46)
       img.setDepth(3)
-      if (pad.exit) animatedPads.push({ img, tex: pad.tex })
+      if (pad.exit ?? seasonExit(pad.season)) animatedPads.push({ img, tex: pad.tex })
       else if (pad.season !== '夏') img.setAlpha(0.35)
     }
     // 調合マーク（浮かぶ光るすり鉢・16コマ）。春の工房と同じく作業マス2つの中央上空に表示

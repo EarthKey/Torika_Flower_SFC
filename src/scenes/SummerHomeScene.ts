@@ -4,7 +4,8 @@ import { playBgm } from '../state/bgm'
 import { updateHud, showMessage, showToast } from '../ui/hud'
 import { openDialogue } from '../ui/dialogue'
 import { fortuneLines } from '../state/fortuneData'
-import { plots, plantOn, harvestFrom, growthStageOf, KIND_LABELS, KIND_LABELS_RUBY, type PlotState } from '../state/gameState'
+import { plots, plantOn, harvestFrom, growthStageOf, stageUnlocks, unlockAutumn, KIND_LABELS, KIND_LABELS_RUBY, type PlotState } from '../state/gameState'
+import { allStage2QuestsEverDelivered } from '../state/questData'
 
 // 夏の里（ステージ2・風魔エリア）。Stage_Summer.webpをそのまま床に敷く一枚絵背景モード。
 // レイアウト: 上中央=青竹の関所（種の聖域へ）、右上=施錠された秋の門、右=夏の工房、
@@ -75,6 +76,7 @@ const PLOT_LAYOUT: Record<string, { actRow: number; actCol: number; artX: number
 export class SummerHomeScene extends GridScene {
   protected sceneSeason: 'spring' | 'summer' = 'summer'
   private plotImages: Record<string, Phaser.GameObjects.Image> = {}
+  private enteringGate = false // 門のフェード中に再度onEnterが走っても二重遷移しないためのガード
 
   constructor() {
     super(
@@ -94,9 +96,9 @@ export class SummerHomeScene extends GridScene {
       '11,21': { exit: { targetScene: 'SummerWorkshopScene', spawnCol: 15, spawnRow: 19 } },
       // 下端: 春の里へ戻る（春側は季節の門(3,25)の下に出現）
       '20,14': { exit: { targetScene: 'HomeScene', spawnCol: 25, spawnRow: 4 } },
-      // 右上: 施錠された秋への門（ステージ3実装時に解放条件を接続する）
-      '3,25': { data: { message: '秋への門は固く閉ざされている……。この里のみんなを癒やせば、道が開けるのだろうか' } },
-      '3,26': { data: { message: '秋への門は固く閉ざされている……。この里のみんなを癒やせば、道が開けるのだろうか' } },
+      // 右上: 秋への門。解放済みなら通常のexitマスと同じ手順（フェード→遷移）で秋の里へ（2026-07-24接続）
+      '3,25': { data: { kind: 'seasonGate', message: '秋への門は固く閉ざされている……。この里のみんなを癒やせば、道が開けるのだろうか' } },
+      '3,26': { data: { kind: 'seasonGate', message: '秋への門は固く閉ざされている……。この里のみんなを癒やせば、道が開けるのだろうか' } },
       // 花占いのポスト（§9-11・各ステージ右下）。結果は日付で決まるため春と同じ結果が出る。
       // 2026-07-20本人指示: ポスト本体を1マス上(18,26)へ移動 → 調べマスはその1マス上(17,26)
       '17,26': { data: { kind: 'hanauranai', message: '花占いのポストがある。Spaceキーで「今日の花占い」' } },
@@ -109,6 +111,10 @@ export class SummerHomeScene extends GridScene {
   }
 
   protected onReady() {
+    // シーンインスタンスは再利用されるため、前回の門通過で立てたフラグを毎回リセットする
+    // （2026-07-24修正: HomeScene.tsと同じ不具合。リセットが無いと秋の門を一度通過した後、
+    // 再訪しても二度と通れなくなる）
+    this.enteringGate = false
     // 夏の里BGM（SUNO制作・2026-07-19生成のStage2.wav）
     playBgm(this, 'bgm_stage2')
 
@@ -151,6 +157,18 @@ export class SummerHomeScene extends GridScene {
 
   protected onEnter(spec: CellSpec) {
     const data = spec.data as ({ kind?: string; message?: string } & Partial<PlotState>) | undefined
+    // 秋への門: 解放済みならフェード→遷移。旧セーブ救済も春の季節の門と同じ方式（2026-07-24接続）
+    if (data?.kind === 'seasonGate') {
+      if (!stageUnlocks.autumn && allStage2QuestsEverDelivered()) unlockAutumn()
+      if (stageUnlocks.autumn && !this.enteringGate) {
+        this.enteringGate = true
+        this.cameras.main.fadeOut(200, 0, 0, 0)
+        this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+          this.scene.start('AutumnHomeScene', { spawnCol: 14, spawnRow: 19 })
+        })
+        return
+      }
+    }
     // 畑: 乗った瞬間に案内テキストを出す（春と同じ方式）
     if (data?.crop) {
       showMessage(`ここは${KIND_LABELS_RUBY[data.crop]}を植える場所`)

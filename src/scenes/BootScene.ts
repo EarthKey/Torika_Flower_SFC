@@ -7,6 +7,7 @@ import { RECIPES } from '../state/gameState'
 
 const KINDS = ['kanzou', 'syoubaku', 'taisou'] as const
 const SUMMER_KINDS = ['syakuyaku', 'keihi', 'syoukyou'] as const
+const AUTUMN_KINDS = ['mao', 'kyounin', 'kakkon'] as const
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -27,6 +28,10 @@ export class BootScene extends Phaser.Scene {
     this.load.image('bg_summer_home', 'assets/bg/summer_home_stage.webp')
     this.load.image('bg_summer_workshop', 'assets/bg/workshop_summer_stage.webp')
     this.load.image('bg_summer_seedfield', 'assets/bg/seedfield_summer_stage.webp')
+    // ステージ3（秋・雑賀）の3マップ（2026-07-24仮組み）
+    this.load.image('bg_autumn_home', 'assets/bg/autumn_home_stage.webp')
+    this.load.image('bg_autumn_workshop', 'assets/bg/workshop_autumn_stage.webp')
+    this.load.image('bg_autumn_seedfield', 'assets/bg/seedfield_autumn_stage.webp')
 
     // プレイヤー（トリカ歩行モーション: 正面・側面・背面 × 4ポーズ。右向きは側面を反転）
     // 1=接地(右腕前) 2=直立(通過) 3=接地(左腕前・1の反転) 4=直立(通過)
@@ -38,7 +43,7 @@ export class BootScene extends Phaser.Scene {
 
     // NPC待機モーション（12コマ連続フレーム。咲耶/イズナ=第4版、シャオラン=腕組み、ネム=腰当て＋髪なびき、
     // 蛇ノ目=片腕で頬杖、アウン=仁王立ち、イブキ=両手を前で重ねる。ステージ2・2026-07-20生成）
-    for (const chara of ['sakuya', 'izuna', 'xiaolan', 'nemu', 'janome', 'aum', 'ibuki']) {
+    for (const chara of ['sakuya', 'izuna', 'xiaolan', 'nemu', 'janome', 'aum', 'ibuki', 'shiba', 'nekomata', 'benten']) {
       for (let f = 1; f <= 12; f++) {
         this.load.image(`${chara}_idle_${f}`, `assets/chara/${chara}_idle_${f}.png`)
       }
@@ -55,7 +60,7 @@ export class BootScene extends Phaser.Scene {
       }
     }
 
-    for (const k of [...KINDS, ...SUMMER_KINDS]) {
+    for (const k of [...KINDS, ...SUMMER_KINDS, ...AUTUMN_KINDS]) {
       this.load.image(`seed_field_${k}`, `assets/items/seed_field_${k}.png`)
       this.load.image(`seed_bag_${k}`, `assets/items/seed_bag_${k}.png`)
       this.load.image(`medal_${k}`, `assets/items/medal_${k}.png`)
