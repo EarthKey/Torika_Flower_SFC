@@ -1,7 +1,7 @@
 // UIはCanvasの上にHTML/CSSで重ねる方針（仕様書§7）。プロトタイプ段階の簡易HUD。
 // 薬の表示は§9-9（2026-07-19確定）: 薬名テキストは常時表示せずアイコンのみ。
 // クリックで解説カード（薬名＋ふりがな＋番号＋構成生薬＋短い解説）＝簡易図鑑を兼ねる。
-import { gameState, RECIPES, KIND_LABELS_RUBY, KIND_STAGE, stageUnlocks, canCompound, type Recipe, type SeedKind } from '../state/gameState'
+import { gameState, RECIPES, KIND_LABELS_RUBY, KIND_STAGE, stageUnlocks, canCompound, takeUrabanashiUnlockNotice, type Recipe, type SeedKind } from '../state/gameState'
 import { options, saveOptions, notifyVolumeChanged } from '../state/options'
 
 let hudEl: HTMLDivElement | null = null
@@ -9,6 +9,7 @@ let messageEl: HTMLDivElement | null = null
 let messageTimer: number | undefined
 let toastContainer: HTMLDivElement | null = null
 let soundBtn: HTMLButtonElement | null = null
+let howtoBtn: HTMLButtonElement | null = null
 let cardEl: HTMLDivElement | null = null
 
 export function mountHud() {
@@ -65,6 +66,21 @@ export function mountHud() {
   refreshSoundButton()
   document.body.appendChild(soundBtn)
 
+  // 「遊び方」ボタン（2026-07-25本人指示）。音量ボタンの左隣・横長の枠。
+  // 久しぶりに遊ぶ人がデモの説明をいつでも見返せるよう、4:3の紹介イラストのページ送りビューアを開く
+  howtoBtn = document.createElement('button')
+  howtoBtn.id = 'howto-toggle'
+  howtoBtn.textContent = '遊び方'
+  howtoBtn.style.cssText = `
+    position: fixed; top: 10px; right: 74px;
+    font-size: 18px; line-height: 26px; font-family: monospace; font-weight: bold;
+    background: rgba(20,15,10,0.75); color: #f2e6c8;
+    padding: 8px 18px; border: 2px solid #8a6a3a; border-radius: 8px;
+    cursor: pointer; z-index: 25;
+  `
+  howtoBtn.addEventListener('click', () => openHowto())
+  document.body.appendChild(howtoBtn)
+
   // 薬アイコンのクリックで解説カードを開く（HUDはpointer-events:noneだが、
   // 薬アイコンだけauto指定で受ける。innerHTML再構築に耐えるようhudEl側で委譲）
   hudEl.addEventListener('click', (e) => {
@@ -109,6 +125,178 @@ function openKusuriCard() {
       closeKusuriCard()
     }
   })
+}
+
+// ── 遊び方ビューア（2026-07-25本人指示） ──────────────────
+// デモ（はじめからのチュートリアル）の内容を、いつでも見返せるページ送りビューア。
+// 各ページは4:3の色鉛筆風イラスト（public/assets/howto/howto_1.webp〜）＋短い説明文。
+// イラスト未生成の間は説明文だけのプレースホルダーで動く（img.onerrorで非表示に切り替え）。
+// 開く=lock / 閉じる=unlock を必ず対にする（引継ぎ注意点3。直書きするとSPACE誤爆する）
+//
+// 文字の載せ方（2026-07-25変更・本人指示）: 説明文はイラストの「下」ではなく**イラストの上に重ねる**。
+// ゲームの紹介画面として1枚の絵に見えるようにしたい、という意図。
+// 焼き込み（画像に文字を合成）ではなくCSSで重ねる方式を採った理由:
+//   - 文字が常に鮮明（拡大縮小でぼけない）／AI生成の日本語崩れが起きない
+//   - 文面の修正がHOWTO_PAGESの1行編集で済み、画像を作り直さなくてよい
+//   - イラストは生成済みの6枚をそのまま使える
+// 引き換えに「画像ファイル単体では説明が完結しない」ため、SNS共有用の1枚絵が必要になったときは
+// 別途 ffmpeg drawtext（UDDigiKyokashoN-B.ttc が標準搭載・動作確認済み）で焼き込み版を作る
+const HOWTO_PAGES = [
+  {
+    title: 'そうさほうほう',
+    body: 'パソコン: やじるしキー か WASD で移動。行きたい場所をクリックしてもOK。Spaceキーで しらべる・はなす。\nスマホ: 行きたい場所をタップすると歩いていくよ。',
+  },
+  {
+    title: 'たねを とりにいこう',
+    body: '里の上にある鳥居をくぐると「種の聖域」へ。キラキラ光る採取スポットの前で Space！',
+  },
+  {
+    title: 'たねを うえよう',
+    body: 'とってきた種は、里の畑にうえよう。育ったら収穫して、生薬（しょうやく）メダルをあつめてね。',
+  },
+  {
+    title: 'おくすりを つくって わたそう',
+    body: '工房の調合台でメダルをえらんで、おくすりを調合！ 咲耶（サクヤ）の症状を聞いて、ぴったりのお薬をとどけよう。',
+  },
+  {
+    title: 'みんなの なやみも きいてあげよう',
+    body: 'シャオランや ネムも、体の悩みをかかえているみたい。話を聞いて、合うお薬をわたしてあげてね。',
+  },
+  {
+    title: 'なやみを かいけつすると……',
+    body: '里のみんなを癒やすと、あたらしいステージへの門が ひらくかも！',
+  },
+]
+
+let howtoEl: HTMLDivElement | null = null
+let howtoOpen = false
+let howtoPage = 0
+
+function closeHowto() {
+  if (!howtoOpen) return
+  howtoOpen = false
+  if (howtoEl) howtoEl.style.display = 'none'
+  unlockGameInput()
+}
+
+function renderHowtoPage() {
+  if (!howtoEl) return
+  const page = HOWTO_PAGES[howtoPage]
+  const last = howtoPage === HOWTO_PAGES.length - 1
+  const img = howtoEl.querySelector('#howto-img') as HTMLImageElement
+  const ph = howtoEl.querySelector('#howto-placeholder') as HTMLDivElement
+  const title = howtoEl.querySelector('#howto-title') as HTMLDivElement
+  const body = howtoEl.querySelector('#howto-body') as HTMLDivElement
+  const pager = howtoEl.querySelector('#howto-pager') as HTMLDivElement
+  const prev = howtoEl.querySelector('#howto-prev') as HTMLButtonElement
+  const next = howtoEl.querySelector('#howto-next') as HTMLButtonElement
+  // まず画像を試し、無ければプレースホルダー（説明文のみ）に切り替える
+  img.style.display = ''
+  ph.style.display = 'none'
+  // 画像はwebp（本人の標準フォーマット。PNG比で約1/13のサイズ。2026-07-25にpngから変更）
+  img.src = `assets/howto/howto_${howtoPage + 1}.webp`
+  title.textContent = `${howtoPage + 1}. ${page.title}`
+  body.textContent = page.body
+  // ページ数は「何分の何」を右下に大きく（本人指示: 見やすい位置・それなりの大きさ）
+  pager.textContent = `${howtoPage + 1} / ${HOWTO_PAGES.length}`
+  prev.style.visibility = howtoPage === 0 ? 'hidden' : 'visible'
+  // 最終ページは「はじめる」に切り替え、押すとビューアを閉じてゲーム本編へ戻る（本人指示）
+  next.textContent = last ? 'はじめる！' : 'つぎ ▶'
+  next.style.background = last ? 'rgba(140,80,30,0.9)' : 'rgba(20,15,10,0.75)'
+}
+
+function howtoAdvance() {
+  if (howtoPage === HOWTO_PAGES.length - 1) {
+    closeHowto() // 最終ページの「はじめる」＝ゲーム本編へ戻る
+  } else {
+    howtoPage++
+    renderHowtoPage()
+  }
+}
+
+function openHowto() {
+  if (!howtoEl) {
+    howtoEl = document.createElement('div')
+    howtoEl.id = 'howto'
+    howtoEl.style.cssText = `
+      position: fixed; inset: 0; display: none;
+      align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.6); z-index: 40;
+    `
+    howtoEl.innerHTML = `
+      <div id="howto-panel" style="
+        position: relative;
+        background: rgba(34,26,18,0.96); border: 3px solid #8a6a3a; border-radius: 12px;
+        padding: 18px 22px; width: min(640px, 92vw);
+        font-family: monospace; color: #f2e6c8; text-align: center;
+      ">
+        <button id="howto-close" title="とじる（ゲームにもどる）" style="
+          position: absolute; top: -14px; right: -14px; width: 40px; height: 40px;
+          font-size: 20px; line-height: 1; font-family: monospace; font-weight: bold;
+          background: rgba(90,24,24,0.95); color: #fff2f0; border: 2px solid #e8b4b4;
+          border-radius: 50%; cursor: pointer;">✕</button>
+        <div style="position: relative; width: 100%; aspect-ratio: 4 / 3; background: rgba(20,15,10,0.6);
+             border: 2px solid #6a4f2a; border-radius: 8px; overflow: hidden; margin-bottom: 12px;">
+          <img id="howto-img" style="width: 100%; height: 100%; object-fit: cover;" alt="">
+          <div id="howto-placeholder" style="display: none; position: absolute; inset: 0;
+               align-items: center; justify-content: center; font-size: 15px; color: #b8a888;">
+            （イラストじゅんびちゅう）
+          </div>
+          <!-- イラストの上に重ねるタイトル帯（左上・木札風） -->
+          <div id="howto-title" style="position: absolute; top: 0; left: 0;
+               max-width: 78%; padding: 8px 20px 10px 16px;
+               background: linear-gradient(105deg, rgba(58,34,18,0.92) 82%, rgba(58,34,18,0) 100%);
+               border-bottom: 2px solid rgba(255,214,150,0.5);
+               font-size: 22px; font-weight: bold; color: #ffe9c0; text-align: left;
+               text-shadow: 0 2px 4px rgba(0,0,0,0.8);"></div>
+          <!-- イラストの上に重ねる説明文（下部・半透明帯） -->
+          <div id="howto-body" style="position: absolute; bottom: 0; left: 0; right: 0;
+               padding: 14px 18px 16px;
+               background: linear-gradient(to top, rgba(18,12,6,0.92) 0%, rgba(18,12,6,0.82) 62%, rgba(18,12,6,0) 100%);
+               font-size: 16px; line-height: 1.7; text-align: left; color: #fff4e0;
+               white-space: pre-wrap; text-shadow: 0 2px 4px rgba(0,0,0,0.9);"></div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <button id="howto-prev" style="font-size: 18px; font-family: monospace; padding: 8px 18px;
+            background: rgba(20,15,10,0.75); color: #f2e6c8; border: 2px solid #8a6a3a;
+            border-radius: 8px; cursor: pointer;">◀ まえ</button>
+          <button id="howto-next" style="font-size: 18px; font-family: monospace; font-weight: bold;
+            padding: 8px 22px; background: rgba(20,15,10,0.75); color: #f2e6c8;
+            border: 2px solid #8a6a3a; border-radius: 8px; cursor: pointer;">つぎ ▶</button>
+          <span id="howto-pager" style="margin-left: auto; font-size: 28px; font-weight: bold;
+            color: #ffd9a0; letter-spacing: 2px;"></span>
+        </div>
+      </div>
+    `
+    document.body.appendChild(howtoEl)
+    const img = howtoEl.querySelector('#howto-img') as HTMLImageElement
+    img.addEventListener('error', () => {
+      img.style.display = 'none'
+      const ph = howtoEl!.querySelector('#howto-placeholder') as HTMLDivElement
+      ph.style.display = 'flex'
+    })
+    howtoEl.querySelector('#howto-prev')!.addEventListener('click', () => {
+      if (howtoPage > 0) { howtoPage--; renderHowtoPage() }
+    })
+    howtoEl.querySelector('#howto-next')!.addEventListener('click', () => howtoAdvance())
+    howtoEl.querySelector('#howto-close')!.addEventListener('click', () => closeHowto())
+  }
+  howtoEl.style.display = 'flex'
+  if (!howtoOpen) {
+    howtoOpen = true
+    howtoPage = 0
+    // 表示中は移動・他ボタンのキー入力を全部ここで握る（lockGameInputが後ろのゲームへ渡さない）。
+    // ←→でページ送り、Space/Enterは「つぎ／はじめる」と同じ、Escは✕と同じ
+    lockGameInput((e) => {
+      if (e.code === 'Escape') closeHowto()
+      else if (e.code === 'ArrowLeft') {
+        if (howtoPage > 0) { howtoPage--; renderHowtoPage() }
+      } else if (e.code === 'ArrowRight' || e.code === 'Space' || e.code === 'Enter' || e.code === 'NumpadEnter') {
+        howtoAdvance()
+      }
+    })
+  }
+  renderHowtoPage()
 }
 
 // 解説カードの中身を組み立てて表示する（§9-9: クリックすればいつでも見られる簡易図鑑）。
@@ -511,7 +699,9 @@ export function setHudVisible(visible: boolean) {
   if (hudEl) hudEl.style.display = display
   if (messageEl) messageEl.style.display = display
   if (soundBtn) soundBtn.style.display = display // 音量ボタンもゲーム中のみ表示（タイトルはオプションで調整）
+  if (howtoBtn) howtoBtn.style.display = display // 遊び方ボタンも同様
   if (!visible) closeKusuriCard() // タイトルへ戻るとき解説カードも閉じる（入力ロックも解除する）
+  if (!visible) closeHowto() // 遊び方ビューアも同様（lockの取り残し防止）
   // タイトルへ戻るときは各ウインドウも閉じる。display操作を直書きすると入力ロックが
   // 解除されないまま残り、以後キーボードが一切効かなくなるので必ず専用のclose関数を通す
   if (!visible) {
@@ -574,6 +764,12 @@ function visibleKinds(): SeedKind[] {
 
 export function updateHud() {
   if (!hudEl) return
+  // 全処方コンプ＝裏話の解放を、到達した調合の直後に一度だけ知らせる（2026-07-26）。
+  // 何も言わずに解放すると、ランダムな世間話に混ざって気づかれないまま終わる
+  if (takeUrabanashiUnlockNotice()) {
+    showToast('すべての処方を覚えた！', 'assets/items/kusuri/kusuri_kanbakutaisouto.png')
+    showMessage('里のみんなが、あなたに聞かせたい話があるようだ……。もう一度、みんなに話しかけてみよう！')
+  }
   const s = gameState
   const kinds = visibleKinds()
   const seedRow = kinds.map((k) => `${icon(`assets/items/seed_bag_${k}.png`)}${s.seeds[k]}`).join('')

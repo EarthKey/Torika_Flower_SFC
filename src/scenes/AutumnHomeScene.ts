@@ -5,7 +5,7 @@ import { updateHud, showMessage, showToast } from '../ui/hud'
 import { openDialogue } from '../ui/dialogue'
 import { fortuneLines } from '../state/fortuneData'
 import { plots, plantOn, harvestFrom, growthStageOf, stageUnlocks, unlockWinter, KIND_LABELS, KIND_LABELS_RUBY, type PlotState, type Season } from '../state/gameState'
-import { allStage3QuestsEverDelivered } from '../state/questData'
+import { winterGateConditionMet } from '../state/questData'
 
 // 秋の里（ステージ3・雑賀エリア）。Stage_Autumn.webpをそのまま床に敷く一枚絵背景モード。
 //
@@ -132,7 +132,7 @@ export class AutumnHomeScene extends GridScene {
     const postX = ((URANAI_POST.cols[0] + URANAI_POST.cols[1]) / 2) * 32 + 16
     const post = this.add.image(postX, URANAI_POST.row * 32 + 26, 'hanauranai_post_1')
     this.fitImage(post, 68)
-    post.setDepth(12)
+    this.registerDepthSortedProp(post, URANAI_POST.row) // 調べマス(14,*)は奥側＝トリカは隠れる
     let postFrame = 1
     this.time.addEvent({
       delay: 90,
@@ -151,7 +151,7 @@ export class AutumnHomeScene extends GridScene {
     const data = spec.data as ({ kind?: string; message?: string } & Partial<PlotState>) | undefined
     // 冬への門: 解放済みならフェード→遷移。旧セーブ救済も夏の秋門と同じ方式（2026-07-25接続）
     if (data?.kind === 'seasonGate') {
-      if (!stageUnlocks.winter && allStage3QuestsEverDelivered()) unlockWinter()
+      if (!stageUnlocks.winter && winterGateConditionMet()) unlockWinter()
       if (stageUnlocks.winter && !this.enteringGate) {
         this.enteringGate = true
         this.cameras.main.fadeOut(200, 0, 0, 0)

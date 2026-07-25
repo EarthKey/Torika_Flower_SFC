@@ -22,8 +22,12 @@ import {
   allStage2QuestsEverDelivered,
   allStage3QuestsEverDelivered,
   allStage4QuestsEverDelivered,
+  autumnGateConditionMet,
   checkCrossTalkUnlock,
   hasAnyKusuri,
+  summerGateConditionMet,
+  syncCrossTalkFromDeliveries,
+  winterGateConditionMet,
   GIFT_TRUST_BONUS,
   type Quest,
 } from '../state/questData'
@@ -124,6 +128,7 @@ export abstract class GridScene extends Phaser.Scene {
     this.isMoving = false
     this.path = []
     this.suppressClickMove = false
+    syncCrossTalkFromDeliveries() // 納品履歴からクロストーク解放数を作り直す（旧セーブ救済）
     this.buildMap()
     this.buildSpecials()
 
@@ -393,27 +398,24 @@ export abstract class GridScene extends Phaser.Scene {
     markQuestDelivered(quest.id)
     recordGift(quest.chara, GIFT_TRUST_BONUS)
     // ステージ1の3依頼が揃った瞬間にイズナの深い会話を開放（§9-8。イズナ本人への依頼は無いので
-    // 他キャラへの依頼達成のたびにここで判定する）。同じトリガーで夏の季節の門も解放する
-    // （§2解放条件・2026-07-19確定: 依頼を全キャラ分渡し終えると次ステージが開く。解放は一度きり。
-    // 依頼が一発完結制になったため、渡し終えた状態はそのまま維持される＝判定は一度trueになれば以後もtrue）
-    const stage1Complete = allStage1QuestsEverDelivered()
-    if (stage1Complete) unlockIzunaStage1Dialogue()
-    if (stage1Complete && unlockSummer()) {
+    // 他キャラへの依頼達成のたびにここで判定する）。
+    // イズナの深い会話は「そのステージの全依頼」、季節の門は「担当3キャラに各1件」で条件が別
+    // （2026-07-25本人指示。秋だけ12件で難易度が跳ね上がっていたため門の条件を3ステージとも統一）。
+    // 依頼が一発完結制になったため、渡し終えた状態はそのまま維持される＝判定は一度trueになれば以後もtrue
+    if (allStage1QuestsEverDelivered()) unlockIzunaStage1Dialogue()
+    if (summerGateConditionMet() && unlockSummer()) {
       showMessage('遠くで、重い門の開く音がした……。里の右上にある「季節の門」が開いたようだ！')
     }
     // ステージ2〜4分のイズナの深い会話（2026-07-24追加）。仕組みはステージ1と同じ
-    // 「そのステージの3依頼が揃った瞬間」判定で、季節の門の解放とは別トリガー
-    const stage2Complete = allStage2QuestsEverDelivered()
-    if (stage2Complete) unlockIzunaStage2Dialogue()
-    // 秋・冬の門も夏の門と同じく「そのステージの依頼が揃った瞬間」に解放し、演出メッセージを出す
+    if (allStage2QuestsEverDelivered()) unlockIzunaStage2Dialogue()
+    // 秋・冬の門も夏の門と同じく「条件を満たした瞬間」に解放し、演出メッセージを出す
     // （2026-07-25本人指示で秋も統一。各シーンのonEnter側にある解放判定は、この処理より前に
     // 作られた旧セーブの救済として残してある）
-    if (stage2Complete && unlockAutumn()) {
+    if (autumnGateConditionMet() && unlockAutumn()) {
       showMessage('遠くで、重い門の開く音がした……。夏の里の右上にある「秋への門」が開いたようだ！')
     }
-    const stage3Complete = allStage3QuestsEverDelivered()
-    if (stage3Complete) unlockIzunaStage3Dialogue()
-    if (stage3Complete && unlockWinter()) {
+    if (allStage3QuestsEverDelivered()) unlockIzunaStage3Dialogue()
+    if (winterGateConditionMet() && unlockWinter()) {
       showMessage('遠くで、重い門の開く音がした……。秋の里の右上にある「冬への門」が開いたようだ！')
     }
     if (allStage4QuestsEverDelivered()) unlockIzunaStage4Dialogue()
@@ -440,6 +442,26 @@ export abstract class GridScene extends Phaser.Scene {
   protected fitImage(img: Phaser.GameObjects.Image, size: number) {
     const scale = size / Math.max(img.width, img.height)
     img.setScale(scale)
+  }
+
+  // ── 立ちオブジェクトの前後関係（2026-07-25新設・本人指示） ──────────────────
+  // 花占いポストのように背の高い置物は、トリカとの上下関係で描画順を入れ替える。
+  // トリカが置物より奥（上の行）にいるときは置物を手前に描いてトリカを隠し、
+  // 手前（下の行）に回り込んだときはトリカを置物の上に出す。
+  // depth固定（従来は12）だと、調べマスが置物の下にある冬の里のような配置で、
+  // 手前に立っているのにトリカが置物へ潜り込んで見えてしまう
+  private depthSortedProps: { img: Phaser.GameObjects.Image; row: number }[] = []
+
+  protected registerDepthSortedProp(img: Phaser.GameObjects.Image, row: number) {
+    this.depthSortedProps.push({ img, row })
+    this.refreshPropDepths()
+  }
+
+  private refreshPropDepths() {
+    for (const prop of this.depthSortedProps) {
+      // プレイヤーのdepthは10。手前に回り込まれたら8へ落として下に潜らせる
+      prop.img.setDepth(this.playerRow > prop.row ? 8 : 12)
+    }
   }
 
   private buildPlayer() {
@@ -484,6 +506,9 @@ export abstract class GridScene extends Phaser.Scene {
   }
 
   update() {
+    // 置物の前後関係はウインドウ表示中でも維持したいので、どの早期returnより前に更新する
+    this.refreshPropDepths()
+
     // 調合ムービー表示中は移動・アクションを止める。スキップはhud.ts側のkeydownリスナーが
     // 担当するため、ここではSPACEのJustDownフラグだけ消費してムービー終了直後に
     // 調合台への再アクションが誤発火しないようにする（2026-07-22修正）

@@ -6,7 +6,7 @@ import { plots, plantOn, harvestFrom, growthStageOf, stageUnlocks, unlockSummer,
 import { updateHud, showMessage, showToast } from '../ui/hud'
 import { openDialogue, type DialogueLine } from '../ui/dialogue'
 import { fortuneLines } from '../state/fortuneData'
-import { allStage1QuestsEverDelivered } from '../state/questData'
+import { summerGateConditionMet } from '../state/questData'
 
 // 春ステージ（自宅・里）V2.3。コンセプト画（stage1.webp）をそのまま床に敷く一枚絵背景モード。
 // 通行判定は下のASCIIマスク（30×22、'#'=通行不可）で画像の川・建物・畑・木立に対応させている。
@@ -199,7 +199,7 @@ export class HomeScene extends GridScene {
     this.fitImage(post, 68)
     // プレイヤー(depth10)より手前に描く: 調べるマス(17,26)はポストの奥側なので、手前に立ったトリカは
     // ポストの屋根に隠れるのが正しい見え方。下側から重なるルートは柵で存在しないため固定値でよい
-    post.setDepth(12)
+    this.registerDepthSortedProp(post, 18) // 調べマス(17,26)はポストの奥側＝トリカは隠れる
     let postFrame = 1
     this.time.addEvent({
       delay: 90,
@@ -228,7 +228,7 @@ export class HomeScene extends GridScene {
     // 旧セーブ救済（2026-07-19）: 解放フラグ実装より前に依頼3件を達成済みだったセーブは
     // 「渡した瞬間」のトリガーが走っていないため、門に触れた時点でも達成歴を見て解放する
     if (data?.kind === 'seasonGate') {
-      if (!stageUnlocks.summer && allStage1QuestsEverDelivered()) unlockSummer()
+      if (!stageUnlocks.summer && summerGateConditionMet()) unlockSummer()
       if (stageUnlocks.summer && !this.enteringGate) {
         this.enteringGate = true
         this.cameras.main.fadeOut(200, 0, 0, 0)

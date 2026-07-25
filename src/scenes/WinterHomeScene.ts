@@ -23,7 +23,8 @@ import { plots, plantOn, harvestFrom, growthStageOf, KIND_LABELS, KIND_LABELS_RU
 const COLS = 30
 const ROWS = 22
 
-// Stage_Winter.json（2026-07-25・本人トレース）のmaskをそのまま採用
+// Stage_Winter.json（2026-07-25・本人トレース）のmaskをそのまま採用。
+// 同日14:46にJSONが更新され、r12（畑の下の道）が c16〜c24 まで開通したぶんを反映済み
 const WALK_MASK = [
   '##############################', // r0
   '##############################', // r1
@@ -37,7 +38,7 @@ const WALK_MASK = [
   '##############.########..#####', // r9
   '##############.#####.##....###', // r10 工房入口(c20)・結(10,26)
   '###.##.##.####.#####.##....###', // r11 畑の作業マス(c3/c6/c9)
-  '#..............#####.##..#####', // r12 畑の下の道
+  '#..............#.........#####', // r12 畑の下の道（2026-07-25 14:46版トレースでc16〜c24まで開通）
   '####.....................#####', // r13
   '#####..#####.....#############', // r14
   '#####...####.....####....#####', // r15
@@ -120,7 +121,7 @@ export class WinterHomeScene extends GridScene {
     const postX = ((URANAI_POST.cols[0] + URANAI_POST.cols[1]) / 2) * 32 + 16
     const post = this.add.image(postX, URANAI_POST.row * 32 + 26, 'hanauranai_post_1')
     this.fitImage(post, 68)
-    post.setDepth(12)
+    this.registerDepthSortedProp(post, URANAI_POST.row) // 調べマス(3,23)(3,24)は手前側＝トリカが表に出る
     let postFrame = 1
     this.time.addEvent({
       delay: 90,

@@ -1,11 +1,21 @@
 // NPC待機モーションシート（C_Sakuya3.webp / C_Izuna3.webp）からアニメ用フレームを切り出すスクリプト。
 // 使い方: node scripts/extract-idle.mjs
-// 方式は extract-walk.mjs と同じ: union縦位置合わせ＋横は各コマ中心＋最大連結成分のみ残す。
 //
 // 第4版シート（2026-07-17）: 4列×3行=12コマすべてが「1つの待機モーション」の連続フレーム。
 // 読み順（上段1〜4→中段5〜8→下段9〜12）どおりに idle_1..12 として書き出す。
-// 縦位置の共通化は全12コマのunionで行う（行ごとだと段の切り替わりでサイズが跳ぶため）。
 // ※旧3モーション版から切り出した greet/kiai/think のPNGは会話リアクション用に残す（上書きしない）。
+//
+// ── コマの切り分け方式（2026-07-25全面変更） ──────────────────
+// 旧方式は「シートを幅/4・高さ/3の等分セルに割って各セルを1コマとみなす」前提だった。
+// これは**AI生成シートでは成立しない**。実測（本人報告の不具合2件の原因調査）:
+//   柴  … 4列目のキャラがx1050から始まるのにセル4の左端はx1086。左36px＝左腕がセル外に出ており、
+//          4・8・12コマ目だけ腕が丸ごと落ちて「左腕が出たり消えたり」する
+//   結  … 3行目のキャラがy706から始まるのにセル3の上端はy724。上18px＝頭がセル外に出ており、
+//          9〜12コマ目で頭が見切れる（さらに旧'foot'方式のクランプで体が16px浮いていた）
+// 現方式は等分セルを使わず、**シート全面の背景を抜いてから連結成分で12体を検出し、各体の
+// 外接矩形をそのままコマにする**。キャラがどこにどれだけ寄っていても欠けない。境界をまたいで
+// 隣のコマに写り込んでいた画素も、成分ラベルで自分の体だけを拾うので混入しない。
+// 検出数が12でなければ（体が分断された/ゴミが残った）その場でエラーにして黙って壊さない。
 //
 // 既知の副作用（2026-07-20発見）: clearEnclosedPocketsBelow()は「頭部ガード帯に掛からない
 // 背景色の塊」を消す設計のため、手甲の鋲・目のハイライトなど「背景色に近いキャラの一部」も
@@ -47,11 +57,11 @@ const SHEETS = [
   // { src: 'C_Janome (3).webp', prefix: 'janome' }, // 蛇ノ目（ジャノメ）
   // { src: 'C_Aum (3).webp', prefix: 'aum' }, // アウン
   // { src: 'C_Ibuki (3).webp', prefix: 'ibuki' }, // イブキ
-  { src: 'C_Shiba_idle.webp', prefix: 'shiba' }, // 柴（2026-07-25 'core'方式で再切り出し）
+  { src: 'C_Shiba_idle.webp', prefix: 'shiba' }, // 柴（2026-07-25 成分検出方式で再切り出し・左腕の欠けを修正）
   // { src: 'C_Nekomata_idle.webp', prefix: 'nekomata' }, // 猫又
-  { src: 'C_Benten_idle.webp', prefix: 'benten' }, // 弁天（2026-07-25 'core'方式で再切り出し）
+  // { src: 'C_Benten_idle.webp', prefix: 'benten' }, // 弁天（2026-07-25 'core'方式で切り出し済み）
   // { src: 'C_Anne3.webp', prefix: 'anne' }, // 餡音（旧命名規則の"3"=待機モーション。C_Sakuya3.webp等と同じ並び）
-  // { src: 'C_Yui_Idle.webp', prefix: 'yui' }, // 結
+  { src: 'C_Yui_Idle.webp', prefix: 'yui' }, // 結（2026-07-25 成分検出方式で再切り出し・頭の見切れを修正）
   // { src: 'C_Hayate_idle.webp', prefix: 'hayate' }, // ハヤテ
 ]
 
@@ -253,44 +263,114 @@ function contentBounds(data, width, height) {
   return { minX, minY, maxX, maxY }
 }
 
+// シート全面から「12体ぶんの連結成分」を読み順（上段左→右、上段→下段）に取り出す。
+// 等分セルを使わないため、キャラがセル境界をまたいでいても欠けない（2026-07-25新設）
+function findCharacterBlobs(data, width, height, expected) {
+  const label = new Int32Array(width * height).fill(-1)
+  const blobs = []
+  for (let start = 0; start < width * height; start++) {
+    if (label[start] !== -1 || data[start * 4 + 3] === 0) continue
+    const id = blobs.length
+    let n = 0, minX = width, maxX = -1, minY = height, maxY = -1
+    const stack = [start]
+    label[start] = id
+    while (stack.length > 0) {
+      const p = stack.pop()
+      n++
+      const x = p % width, y = (p / width) | 0
+      if (x < minX) minX = x
+      if (x > maxX) maxX = x
+      if (y < minY) minY = y
+      if (y > maxY) maxY = y
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy
+        if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue
+        const np = ny * width + nx
+        if (label[np] === -1 && data[np * 4 + 3] > 0) {
+          label[np] = id
+          stack.push(np)
+        }
+      }
+    }
+    blobs.push({ id, n, minX, maxX, minY, maxY })
+  }
+
+  // 体の1/5未満の成分はゴミ（背景の残り・分離した小片）として捨てる
+  const maxN = Math.max(...blobs.map((b) => b.n))
+  const kept = blobs.filter((b) => b.n > maxN / 5)
+  if (kept.length !== expected) {
+    const report = kept.map((b) => `px=${b.n} x${b.minX}-${b.maxX} y${b.minY}-${b.maxY}`).join('\n  ')
+    throw new Error(
+      `検出したキャラが${kept.length}体で、期待する${expected}体と違います。` +
+        `体が分断された、またはゴミが残っています:\n  ${report}`,
+    )
+  }
+
+  // 読み順に並べる: 縦位置で行ごとにまとめ、行内は横位置でソート
+  kept.sort((a, b) => (a.minY + a.maxY) / 2 - (b.minY + b.maxY) / 2)
+  const ordered = []
+  for (let r = 0; r < ROWS; r++) {
+    const row = kept.slice(r * COLS, (r + 1) * COLS)
+    row.sort((a, b) => (a.minX + a.maxX) / 2 - (b.minX + b.maxX) / 2)
+    ordered.push(...row)
+  }
+  return { ordered, label }
+}
+
 mkdirSync(OUT, { recursive: true })
 
 for (const sheet of SHEETS) {
   const srcPath = join(SRC_DIR, sheet.src)
-  const meta = await sharp(srcPath).metadata()
-  const cellW = Math.floor(meta.width / COLS)
-  const cellH = Math.floor(meta.height / ROWS)
-  console.log(`${sheet.src}: ${meta.width}x${meta.height}, cell ${cellW}x${cellH}`)
+  const { data: sheetData, info: sheetInfo } = await sharp(srcPath)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true })
+  const SW = sheetInfo.width, SH = sheetInfo.height
+  console.log(`${sheet.src}: ${SW}x${SH}`)
 
-  // 全12コマを読み順（左上→右、上段→下段）に処理
+  // 背景抜きはシート全面で一度だけ行う（外周からの塗りつぶしなので、
+  // セル単位でやるより背景色の推定も安定する）
+  const bg = removeBackground(sheetData, SW, SH)
+  shaveBackgroundFringe(sheetData, SW, SH, bg)
+  const { ordered, label } = findCharacterBlobs(sheetData, SW, SH, COLS * ROWS)
+
+  // 各体を「自分の成分ラベルの画素だけ」を写した個別バッファに切り出す。
+  // 隣のコマから写り込んだ画素はラベルが違うので自然に落ちる（旧方式のkeepLargestComponent相当）
   const cells = []
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
-      const { data, info } = await sharp(srcPath)
-        .extract({ left: c * cellW, top: r * cellH, width: cellW, height: cellH })
-        .ensureAlpha()
-        .raw()
-        .toBuffer({ resolveWithObject: true })
-      const bg = removeBackground(data, info.width, info.height)
-      shaveBackgroundFringe(data, info.width, info.height, bg)
-      clearEnclosedPocketsBelow(data, info.width, info.height, bg)
-      keepLargestComponent(data, info.width, info.height)
-      erodeEdge(data, info.width, info.height)
-      const b = contentBounds(data, info.width, info.height)
-      if (!b) throw new Error(`empty cell: ${sheet.src} row=${r} col=${c}`)
-      cells.push({ data, info, b })
+  ordered.forEach((blob, i) => {
+    const w = blob.maxX - blob.minX + 1
+    const h = blob.maxY - blob.minY + 1
+    const buf = new Uint8Array(w * h * 4)
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const sp = (y + blob.minY) * SW + (x + blob.minX)
+        if (label[sp] !== blob.id) continue
+        buf.set(sheetData.subarray(sp * 4, sp * 4 + 4), (y * w + x) * 4)
+      }
     }
-  }
+    const info = { width: w, height: h }
+    clearEnclosedPocketsBelow(buf, w, h, bg)
+    erodeEdge(buf, w, h)
+    const b = contentBounds(buf, w, h)
+    if (!b) throw new Error(`empty frame: ${sheet.src} #${i + 1}`)
+    console.log(`  frame${i + 1}: ${w}x${h} at (${blob.minX},${blob.minY}) px=${blob.n}`)
+    cells.push({ data: buf, info, b })
+  })
 
   const override = FRAME_OVERRIDE[sheet.prefix] ?? {}
   const order = cells.map((_, i) => (override[i + 1] ?? i + 1) - 1)
 
-  if (ALIGN_MODE[sheet.prefix] === 'core') {
-    // ── 'core'方式: 頭〜胴の重心を錨にして全コマを揃える ──────────
-    // 各コマについて「キャラ上端からCORE_RATIO分の高さの帯」に含まれる不透明ピクセルの重心を求める。
-    // 尻尾・袖・裾など体の外で大きく動くパーツはこの帯に入らないので、錨が振り回されない。
-    const anchors = order.map((idx) => {
-      const { data, info, b } = cells[idx]
+  // ── 位置合わせ（2026-07-25に'core'/'foot'共通化） ──────────
+  // モードの違いは「錨（アンカー）をどこに取るか」だけ。錨を重ねて和集合のキャンバスへ
+  // 切り出す手順は共通にした。旧'foot'方式はセル内で切り出し位置をクランプしていたため、
+  // キャラがセル上端に寄ったコマだけ足元が揃わず体が浮いた（結の9〜12コマ目が16px浮いていた）。
+  // 透明余白を足してから切るこの方式ならクランプが不要で、どのコマも錨がぴったり重なる
+  const mode = ALIGN_MODE[sheet.prefix] ?? 'foot'
+  const anchors = order.map((idx) => {
+    const { data, info, b } = cells[idx]
+    if (mode === 'core') {
+      // 'core': キャラ上端からCORE_RATIO分の帯（頭〜胴）の重心。
+      // 尻尾・袖・裾など体の外で大きく振れるパーツはこの帯に入らないので錨が振り回されない
       const coreBottom = b.minY + Math.round((b.maxY - b.minY) * CORE_RATIO)
       let sx = 0, sy = 0, n = 0
       for (let y = b.minY; y <= coreBottom; y++) {
@@ -299,84 +379,55 @@ for (const sheet of SHEETS) {
         }
       }
       return { x: sx / n, y: sy / n }
-    })
-
-    // 1コマ目を基準に、各コマの錨のズレ量（この分だけ切り出し位置をずらせば体幹が重なる）
-    const offs = anchors.map((a) => ({ dx: Math.round(a.x - anchors[0].x), dy: Math.round(a.y - anchors[0].y) }))
-
-    // キャンバスは「ズレ補正後の外接矩形の和集合」。尻尾が大きく振れてもはみ出して欠けない
-    let uMinX = Infinity, uMaxX = -Infinity, uMinY = Infinity, uMaxY = -Infinity
-    order.forEach((idx, i) => {
-      const b = cells[idx].b
-      uMinX = Math.min(uMinX, b.minX - offs[i].dx)
-      uMaxX = Math.max(uMaxX, b.maxX - offs[i].dx)
-      uMinY = Math.min(uMinY, b.minY - offs[i].dy)
-      uMaxY = Math.max(uMaxY, b.maxY - offs[i].dy)
-    })
-    const rawW = uMaxX - uMinX + 1 + PAD * 2
-    const canvasH = uMaxY - uMinY + 1 + PAD * 2
-
-    // キャンバス幅は「尻尾が振れる範囲」まで含んだ和集合なので、そのままだと体幹が中央からずれる
-    // （柴は尻尾が右に振れるぶんキャンバスが右へ伸び、体が左に12px寄っていた）。
-    // ゲーム側はスプライトを中心原点でマスに置くため、そのぶんNPCがマスからずれて見える。
-    // 体幹が必ずキャンバスの左右中央に来るよう、足りない側へ余白を足して対称にする
-    const anchorOut = Math.round(anchors[0].x) - uMinX + PAD // 1コマ目の体幹がキャンバス内で来る位置
-    const canvasW = Math.max(anchorOut, rawW - anchorOut) * 2
-    const padLeft = Math.round(canvasW / 2 - anchorOut)
-
-    // 切り出し枠はセルの外へはみ出すことがある（元シートはキャラがセル内で均等に置かれておらず、
-    // 4列目のキャラはセル左端にぴったり接している）。素のセルから切ると枠がクランプされ、
-    // そのコマだけ位置がずれて**揃えたはずなのにガタつく**。セルの四方に透明の余白を足してから
-    // 切り出すことで、はみ出しても欠けず、隣のコマが写り込むこともない
-    const M = 200
-    for (let i = 0; i < order.length; i++) {
-      const { data, info } = cells[order[i]]
-      const pw = info.width + M * 2
-      const ph = info.height + M * 2
-      const padded = new Uint8Array(pw * ph * 4) // 全画素 alpha=0 の透明で初期化
-      for (let y = 0; y < info.height; y++) {
-        const src = y * info.width * 4
-        const dst = ((y + M) * pw + M) * 4
-        padded.set(data.subarray(src, src + info.width * 4), dst)
-      }
-      const left = uMinX + M - PAD + offs[i].dx - padLeft
-      const top = uMinY + M - PAD + offs[i].dy
-      const outName = `${sheet.prefix}_idle_${i + 1}.png`
-      await sharp(Buffer.from(padded), { raw: { width: pw, height: ph, channels: 4 } })
-        .extract({ left, top, width: canvasW, height: canvasH })
-        .png()
-        .toFile(join(OUT, outName))
-      console.log(`OK: ${outName} (${canvasW}x${canvasH}) core-aligned dx=${offs[i].dx} dy=${offs[i].dy}`)
     }
-    continue
-  }
+    // 'foot': 縦は足元(maxY)、横は外接矩形の中心。呼吸の上下動だけを消して接地を固定する
+    return { x: (b.minX + b.maxX) / 2, y: b.maxY }
+  })
 
-  // ── 'foot'方式（従来・既定） ──────────
-  // 縦位置は「シート全体の絶対座標で揃える」のではなく、各コマの足元(maxY)を基準に揃える。
-  // 元の12コマ絵に呼吸アニメ的なわずかな上下動があると、シート共通の絶対top/bottomで
-  // 切り出した場合はその上下動がそのまま出力されてしまい、ゲーム内でNPCが浮き沈みして
-  // 見えるバグになる（2026-07-20発見）。maxY（足元）をコマごとに検出し、そこを基準に
-  // 一定のマージンを取って切り出すことで、キャンバス内での足元位置を全コマ共通に固定する。
-  const canvasH = Math.max(...cells.map((c) => c.b.maxY - c.b.minY + 1)) + PAD * 2
-  const canvasW = Math.max(...cells.map((c) => c.b.maxX - c.b.minX + 1)) + PAD * 2
+  // 1コマ目を基準に、各コマの錨のズレ量（この分だけ切り出し位置をずらせば錨が重なる）
+  const offs = anchors.map((a) => ({ dx: Math.round(a.x - anchors[0].x), dy: Math.round(a.y - anchors[0].y) }))
 
+  // キャンバスは「ズレ補正後の外接矩形の和集合」。尻尾が大きく振れてもはみ出して欠けない
+  let uMinX = Infinity, uMaxX = -Infinity, uMinY = Infinity, uMaxY = -Infinity
+  order.forEach((idx, i) => {
+    const b = cells[idx].b
+    uMinX = Math.min(uMinX, b.minX - offs[i].dx)
+    uMaxX = Math.max(uMaxX, b.maxX - offs[i].dx)
+    uMinY = Math.min(uMinY, b.minY - offs[i].dy)
+    uMaxY = Math.max(uMaxY, b.maxY - offs[i].dy)
+  })
+  const rawW = uMaxX - uMinX + 1 + PAD * 2
+  const canvasH = uMaxY - uMinY + 1 + PAD * 2
+
+  // キャンバス幅は「尻尾が振れる範囲」まで含んだ和集合なので、そのままだと体幹が中央からずれる
+  // （柴は尻尾が右に振れるぶんキャンバスが右へ伸び、体が左に12px寄っていた）。
+  // ゲーム側はスプライトを中心原点でマスに置くため、そのぶんNPCがマスからずれて見える。
+  // 体幹が必ずキャンバスの左右中央に来るよう、足りない側へ余白を足して対称にする
+  const anchorOut = Math.round(anchors[0].x) - uMinX + PAD // 1コマ目の錨がキャンバス内で来る位置
+  const canvasW = Math.max(anchorOut, rawW - anchorOut) * 2
+  const padLeft = Math.round(canvasW / 2 - anchorOut)
+
+  // 切り出し枠は元画像の外へはみ出すことがある（キャラの外接矩形ぴったりで切っているため、
+  // 錨をずらすと必ずはみ出る）。四方に透明の余白を足してから切ることで、はみ出しても欠けない
+  const M = 200
   for (let i = 0; i < order.length; i++) {
-    const { data, info, b } = cells[order[i]]
-    const contentW = b.maxX - b.minX + 1
-    // このコマの足元(b.maxY)がキャンバス内で下からPAD分の位置に来るように上端を逆算する
-    let top = b.maxY - (canvasH - 1 - PAD)
-    top = Math.max(0, Math.min(top, cellH - canvasH))
-    const frame = await sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } })
-      .extract({ left: b.minX, top, width: contentW, height: canvasH })
-      .toBuffer()
+    const { data, info } = cells[order[i]]
+    const pw = info.width + M * 2
+    const ph = info.height + M * 2
+    const padded = new Uint8Array(pw * ph * 4) // 全画素 alpha=0 の透明で初期化
+    for (let y = 0; y < info.height; y++) {
+      const src = y * info.width * 4
+      const dst = ((y + M) * pw + M) * 4
+      padded.set(data.subarray(src, src + info.width * 4), dst)
+    }
+    const left = uMinX + M - PAD + offs[i].dx - padLeft
+    const top = uMinY + M - PAD + offs[i].dy
     const outName = `${sheet.prefix}_idle_${i + 1}.png`
-    await sharp({
-      create: { width: canvasW, height: canvasH, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
-    })
-      .composite([{ input: frame, raw: { width: contentW, height: canvasH, channels: 4 }, left: Math.round((canvasW - contentW) / 2), top: 0 }])
+    await sharp(Buffer.from(padded), { raw: { width: pw, height: ph, channels: 4 } })
+      .extract({ left, top, width: canvasW, height: canvasH })
       .png()
       .toFile(join(OUT, outName))
-    console.log(`OK: ${outName} (${canvasW}x${canvasH})`)
+    console.log(`OK: ${outName} (${canvasW}x${canvasH}) ${mode}-aligned dx=${offs[i].dx} dy=${offs[i].dy}`)
   }
 }
 

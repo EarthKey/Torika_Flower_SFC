@@ -991,6 +991,35 @@ export function allStage4QuestsEverDelivered(): boolean {
   return QUESTS_STAGE4.every((q) => questDeliveredAt[q.id] !== undefined)
 }
 
+// ── 季節の門の解放条件（2026-07-25本人指示で明文化・統一） ──────────────────
+// 門の条件は「そのステージの担当3キャラに、それぞれ1件でも渡し終えたか」。
+// 春(QUESTS)・夏(QUESTS_STAGE2)は各キャラ1件ずつの3件構成なので従来と同じ挙動だが、
+// 秋(QUESTS_STAGE3)だけは追加依頼を別配列に分けず12件を1配列に入れていたため、
+// 「全依頼」条件だと冬の門だけ実質4倍の難易度になっていた。ここで3ステージとも同じ規則に揃える。
+// イズナの深い会話は従来どおり「全依頼」条件のまま（allStageNQuestsEverDelivered）で据え置く
+function eachCharaDeliveredOnce(quests: Quest[]): boolean {
+  const charas = [...new Set(quests.map((q) => q.chara))]
+  if (charas.length === 0) return false
+  return charas.every((c) =>
+    quests.some((q) => q.chara === c && questDeliveredAt[q.id] !== undefined),
+  )
+}
+
+// 夏の門（春の里の右上）の解放条件: 咲耶・シャオラン・ネムに各1件
+export function summerGateConditionMet(): boolean {
+  return eachCharaDeliveredOnce(QUESTS)
+}
+
+// 秋への門（夏の里の右上）の解放条件: 蛇ノ目・アウン・イブキに各1件
+export function autumnGateConditionMet(): boolean {
+  return eachCharaDeliveredOnce(QUESTS_STAGE2)
+}
+
+// 冬への門（秋の里の右上）の解放条件: 柴・猫又・弁天に各1件（従来は12件全部だった）
+export function winterGateConditionMet(): boolean {
+  return eachCharaDeliveredOnce(QUESTS_STAGE3)
+}
+
 // ── クロストーク解放（2026-07-24〜） ──────────────────
 // 12キャラ（春夏秋冬の担当3体ずつ）共通のクロストーク仕組み。各キャラの季節タグ付き依頼を
 // 「その季節ぶん」全部渡し終えるたびに、目標値まで解放数を引き上げる。
@@ -1025,6 +1054,19 @@ export function checkCrossTalkUnlock(chara: string, season: Season): number | nu
   if (target === undefined) return null
   if (!seasonQuestsDeliveredFor(chara, season)) return null
   return unlockCrossTalkTier(chara, target) ? target : null
+}
+
+// 旧セーブ救済（2026-07-25）: npcCrossTalkは2026-07-24に追加したフィールドなので、それ以前の
+// セーブには入っていない。また、本文が未執筆だった時期に依頼を渡し終えたセーブでは解放フラグだけが
+// 先に立っている。どちらの場合も納品履歴（questDeliveredAt）が残っているので、そこから
+// 解放数を作り直す。クロストークは常設会話になったため、これだけで過去ぶんも会話に並ぶ。
+// シーン入場時に毎回呼んでよい（すでに到達済みのtierには何もしない）
+export function syncCrossTalkFromDeliveries() {
+  for (const [chara, targets] of Object.entries(CROSS_TALK_TARGETS)) {
+    for (const [season, target] of Object.entries(targets)) {
+      if (seasonQuestsDeliveredFor(chara, season as Season)) unlockCrossTalkTier(chara, target)
+    }
+  }
 }
 
 // 手持ちに1個でも薬があるか（依頼会話のあと薬渡しウインドウを開くかの判定）

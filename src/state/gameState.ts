@@ -111,6 +111,9 @@ export const gameState = {
   kusuriEverObtained: {} as Record<string, boolean>,
   // 累計調合数（薬依頼システム§9-8の発動条件用。薬を渡して手持ちが0になっても発動は維持される）
   totalKusuriCrafted: 0,
+  // 裏話（全処方コンプのやりこみ報酬）を、そのキャラぶん一度でも読んだか（2026-07-26〜）。
+  // 未読のうちは世間話より優先して再生し、読み終わったら通常プールへ合流させる
+  urabanashiSeen: {} as Record<string, boolean>,
 }
 
 export function kusuriCountOf(recipeId: string): number {
@@ -553,6 +556,32 @@ export function canCompound(recipe: Recipe): boolean {
   )
 }
 
+// ── 裏話（やりこみ報酬）の解放判定（2026-07-26新設・本人指示） ──────────────────
+// 全11処方を一度でも調合したら、全キャラの「キャラ設定の裏話」が解放される。
+// 冬の依頼で必ず作る処方（甘草乾姜湯・桂枝人参湯）だけでは埋まらず、依頼に出てこない
+// 処方（人参湯・葛根湯など）も自分から作る必要があるため、やりこみのゲートとして機能する
+export function allRecipesEverCrafted(): boolean {
+  return RECIPES.every((r) => gameState.kusuriEverObtained[r.id])
+}
+
+// 「今の調合で全処方コンプに到達した」ことを一度だけHUDへ伝えるための受け渡し用フラグ。
+// gameStateからhud.tsを直接呼ぶと循環参照になるため、hud側のupdateHud()（調合後に必ず呼ばれる）が
+// takeUrabanashiUnlockNotice()で取りに来る方式にしている。4つの工房シーンを個別に触らずに済む
+let urabanashiUnlockPending = false
+
+export function takeUrabanashiUnlockNotice(): boolean {
+  if (!urabanashiUnlockPending) return false
+  urabanashiUnlockPending = false
+  return true
+}
+
+// 裏話を読み終えたことを記録する（未読のうちは優先再生されるため、既読化して通常プールへ戻す）
+export function markUrabanashiSeen(chara: string) {
+  if (gameState.urabanashiSeen[chara]) return
+  gameState.urabanashiSeen[chara] = true
+  persist()
+}
+
 export function tryCompound(recipe: Recipe): boolean {
   if (!canCompound(recipe)) return false
   for (const [kind, n] of Object.entries(recipe.cost) as [SeedKind, number][]) {
@@ -561,8 +590,11 @@ export function tryCompound(recipe: Recipe): boolean {
   gameState.kusuriCounts[recipe.id] = TEST_UNLIMITED_KUSURI
     ? 99
     : (gameState.kusuriCounts[recipe.id] ?? 0) + 1
+  const wasComplete = allRecipesEverCrafted() // この調合の前にコンプしていたか
   gameState.kusuriEverObtained[recipe.id] = true
   gameState.totalKusuriCrafted++
+  // 最後の1処方を埋めた瞬間だけ、裏話の解放をHUDへ通知する
+  if (!wasComplete && allRecipesEverCrafted()) urabanashiUnlockPending = true
   persist()
   return true
 }
@@ -590,6 +622,7 @@ interface SaveData {
   plots: Record<string, { crop: SeedKind; plantedAtMs: number | null }>
   npcStates?: Record<string, NpcState> // 会話システム追加前のセーブには無い
   npcCrossTalk?: Record<string, number> // クロストーク解放数（2026-07-24追加。追加前のセーブには無い）
+  urabanashiSeen?: Record<string, boolean> // 裏話の既読（2026-07-26追加。追加前のセーブには無い＝全員未読扱い）
   seedSpotCollectedAt?: Record<SeedKind, number | null> // 採取クールダウン追加前のセーブには無い
   stageUnlocks?: { summer?: boolean; autumn?: boolean; winter?: boolean } // 季節の門の解放状態（2026-07-19追加。追加前のセーブには無い）
   lastPlayedMs?: number // スロット選択画面の要約表示用
@@ -608,6 +641,7 @@ function persist() {
       plots,
       npcStates,
       npcCrossTalk,
+      urabanashiSeen: gameState.urabanashiSeen,
       seedSpotCollectedAt,
       stageUnlocks,
       lastPlayedMs: Date.now(),
@@ -628,6 +662,7 @@ function resetState() {
   gameState.kusuriCounts = {}
   gameState.kusuriEverObtained = {}
   gameState.totalKusuriCrafted = 0
+  gameState.urabanashiSeen = {}
   for (const key of Object.keys(questDeliveredAt)) delete questDeliveredAt[key]
   for (const key of Object.keys(plots)) plots[key].plantedAtMs = null
   for (const key of Object.keys(npcStates)) {
@@ -664,6 +699,8 @@ function applySaveData(data: SaveData) {
   gameState.totalKusuriCrafted =
     data.totalKusuriCrafted ??
     Object.values(gameState.kusuriCounts).reduce((s, v) => s + (v || 0), 0)
+  // 裏話の既読は記録がなければ空のまま（＝全員未読。解放済みなら優先再生される）
+  if (data.urabanashiSeen) gameState.urabanashiSeen = { ...data.urabanashiSeen }
   if (data.questDeliveredAt) Object.assign(questDeliveredAt, data.questDeliveredAt)
   for (const key of Object.keys(plots)) {
     if (data.plots?.[key]) plots[key].plantedAtMs = data.plots[key].plantedAtMs

@@ -5,7 +5,7 @@ import { updateHud, showMessage, showToast } from '../ui/hud'
 import { openDialogue } from '../ui/dialogue'
 import { fortuneLines } from '../state/fortuneData'
 import { plots, plantOn, harvestFrom, growthStageOf, stageUnlocks, unlockAutumn, KIND_LABELS, KIND_LABELS_RUBY, type PlotState } from '../state/gameState'
-import { allStage2QuestsEverDelivered } from '../state/questData'
+import { autumnGateConditionMet } from '../state/questData'
 
 // 夏の里（ステージ2・風魔エリア）。Stage_Summer.webpをそのまま床に敷く一枚絵背景モード。
 // レイアウト: 上中央=青竹の関所（種の聖域へ）、右上=施錠された秋の門、右=夏の工房、
@@ -140,7 +140,7 @@ export class SummerHomeScene extends GridScene {
     this.blockCell(18, 26)
     const post = this.add.image(26 * 32 + 16, 18 * 32 + 26, 'hanauranai_post_1')
     this.fitImage(post, 68)
-    post.setDepth(12)
+    this.registerDepthSortedProp(post, 18) // 調べマス(17,26)はポストの奥側＝トリカは隠れる
     let postFrame = 1
     this.time.addEvent({
       delay: 90,
@@ -159,7 +159,7 @@ export class SummerHomeScene extends GridScene {
     const data = spec.data as ({ kind?: string; message?: string } & Partial<PlotState>) | undefined
     // 秋への門: 解放済みならフェード→遷移。旧セーブ救済も春の季節の門と同じ方式（2026-07-24接続）
     if (data?.kind === 'seasonGate') {
-      if (!stageUnlocks.autumn && allStage2QuestsEverDelivered()) unlockAutumn()
+      if (!stageUnlocks.autumn && autumnGateConditionMet()) unlockAutumn()
       if (stageUnlocks.autumn && !this.enteringGate) {
         this.enteringGate = true
         this.cameras.main.fadeOut(200, 0, 0, 0)
