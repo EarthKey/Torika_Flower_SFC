@@ -10,6 +10,9 @@ import { SummerWorkshopScene } from './scenes/SummerWorkshopScene'
 import { AutumnHomeScene } from './scenes/AutumnHomeScene'
 import { AutumnSeedFieldScene } from './scenes/AutumnSeedFieldScene'
 import { AutumnWorkshopScene } from './scenes/AutumnWorkshopScene'
+import { WinterHomeScene } from './scenes/WinterHomeScene'
+import { WinterSeedFieldScene } from './scenes/WinterSeedFieldScene'
+import { WinterWorkshopScene } from './scenes/WinterWorkshopScene'
 import { mountHud, setHudVisible } from './ui/hud'
 import { mountDialogue } from './ui/dialogue'
 
@@ -40,6 +43,9 @@ const game = new Phaser.Game({
     AutumnHomeScene,
     AutumnSeedFieldScene,
     AutumnWorkshopScene,
+    WinterHomeScene,
+    WinterSeedFieldScene,
+    WinterWorkshopScene,
   ],
 })
 

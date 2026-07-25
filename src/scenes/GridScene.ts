@@ -11,6 +11,8 @@ import {
   unlockIzunaStage3Dialogue,
   unlockIzunaStage4Dialogue,
   unlockSummer,
+  unlockAutumn,
+  unlockWinter,
   type Recipe,
   type Season,
 } from '../state/gameState'
@@ -25,7 +27,7 @@ import {
   GIFT_TRUST_BONUS,
   type Quest,
 } from '../state/questData'
-import { showMessage, showToast, showGiftPicker, showQuestChoice, updateHud, isCompoundMovieOpen } from '../ui/hud'
+import { showMessage, showToast, showGiftPicker, showQuestChoice, updateHud, isCompoundMovieOpen, isOverlayOpen } from '../ui/hud'
 import { zoomState } from '../state/options'
 
 // 3エリア共通の土台。Tiled形式のマップJSON（scripts/make-maps.mjs が生成、
@@ -401,8 +403,19 @@ export abstract class GridScene extends Phaser.Scene {
     }
     // ステージ2〜4分のイズナの深い会話（2026-07-24追加）。仕組みはステージ1と同じ
     // 「そのステージの3依頼が揃った瞬間」判定で、季節の門の解放とは別トリガー
-    if (allStage2QuestsEverDelivered()) unlockIzunaStage2Dialogue()
-    if (allStage3QuestsEverDelivered()) unlockIzunaStage3Dialogue()
+    const stage2Complete = allStage2QuestsEverDelivered()
+    if (stage2Complete) unlockIzunaStage2Dialogue()
+    // 秋・冬の門も夏の門と同じく「そのステージの依頼が揃った瞬間」に解放し、演出メッセージを出す
+    // （2026-07-25本人指示で秋も統一。各シーンのonEnter側にある解放判定は、この処理より前に
+    // 作られた旧セーブの救済として残してある）
+    if (stage2Complete && unlockAutumn()) {
+      showMessage('遠くで、重い門の開く音がした……。夏の里の右上にある「秋への門」が開いたようだ！')
+    }
+    const stage3Complete = allStage3QuestsEverDelivered()
+    if (stage3Complete) unlockIzunaStage3Dialogue()
+    if (stage3Complete && unlockWinter()) {
+      showMessage('遠くで、重い門の開く音がした……。秋の里の右上にある「冬への門」が開いたようだ！')
+    }
     if (allStage4QuestsEverDelivered()) unlockIzunaStage4Dialogue()
     // クロストーク解放（2026-07-24追加）: このキャラの季節タグぶんの依頼が揃ったら段階的に解放。
     // お礼の会話が閉じた直後に、解放されたクロストーク本文を続けて1回だけ再生する
@@ -475,6 +488,15 @@ export abstract class GridScene extends Phaser.Scene {
     // 担当するため、ここではSPACEのJustDownフラグだけ消費してムービー終了直後に
     // 調合台への再アクションが誤発火しないようにする（2026-07-22修正）
     if (isCompoundMovieOpen()) {
+      this.path = []
+      Phaser.Input.Keyboard.JustDown(this.actionKey)
+      return
+    }
+
+    // レシピ選択・薬渡し・依頼分岐のウインドウ表示中も同様に止める（2026-07-25追加）。
+    // JustDownフラグをここで消費しておかないと、ウインドウを閉じた直後に同じキー入力を
+    // 調合台アクションや話しかけが拾ってしまい、選択ウインドウが再び開いてしまう
+    if (isOverlayOpen()) {
       this.path = []
       Phaser.Input.Keyboard.JustDown(this.actionKey)
       return

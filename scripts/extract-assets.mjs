@@ -5,7 +5,7 @@
 // シートを再生成したら、このスクリプトを再実行するだけで差し替えられる。
 
 import sharp from 'sharp'
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, copyFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const SRC = 'D:/AIillust/CriptNinja/2026/Game/TorkaFlower/V2'
@@ -14,6 +14,10 @@ const OUT = new URL('../public/assets', import.meta.url).pathname.replace(/^\/([
 const KINDS = ['kanzou', 'syoubaku', 'taisou']
 const SUMMER_KINDS = ['syakuyaku', 'keihi', 'syoukyou']
 const AUTUMN_KINDS = ['mao', 'kyounin', 'kakkon']
+// ステージ4（冬・伊賀）: 人参・白朮のみ新規シート。乾姜(kankyou)は生姜(夏)と同一植物のため
+// 種・成長4段階のアセットは持たず、下部の「乾姜アセットの複製」でsyoukyouの出力ファイルを
+// そのままkankyou名でコピーする（2026-07-23本人指示・メダルのみ新規意匠）
+const WINTER_KINDS = ['ninjin', 'byakujutsu']
 
 // ── 切り出し定義 ─────────────────────────────
 // rect: [left, top, width, height]（シート上のおおまかなセル範囲。正確さはトリムが吸収する）
@@ -185,6 +189,59 @@ const jobs = []
   })
 }
 
+// ── ステージ4（冬・伊賀）: 人参・白朮（乾姜は生姜アセットを複製・下記参照） ─────────
+
+// 種シート（冬・テキストなし版）: 1536×1024、2行×4列グリッド（人参・白朮の2種のみ。
+// 乾姜は生姜(夏)の種を流用するためここには含まない・2026-07-23本人指示）
+{
+  const CW = 1536 / 4
+  const CH = 1024 / 2
+  const cols = ['field', 'bag', 'mini', 'glow']
+  WINTER_KINDS.forEach((kind, r) => {
+    cols.forEach((col, c) => {
+      jobs.push({
+        src: 'seed_winter.webp',
+        rect: [Math.round(c * CW), Math.round(r * CH), Math.round(CW), Math.round(CH)],
+        out: `items/seed_${col}_${kind}.png`,
+      })
+    })
+  })
+}
+
+// 植物の成長4段階（冬・テキストなし版）: 1536×1024、秋と同じ上段/下段の分割比率
+{
+  const files = { ninjin: 'ninjin.webp', byakujutsu: 'byakujutsu.webp' }
+  const CW = 1536 / 4
+  for (const kind of WINTER_KINDS) {
+    for (let stage = 1; stage <= 4; stage++) {
+      jobs.push({
+        src: files[kind],
+        rect: [Math.round((stage - 1) * CW), 20, Math.round(CW), 540],
+        out: `plants/${kind}_large_stage${stage}.png`,
+      })
+      jobs.push({
+        src: files[kind],
+        rect: [Math.round((stage - 1) * CW), 580, Math.round(CW), 420],
+        out: `plants/${kind}_stage${stage}.png`,
+      })
+    }
+  }
+}
+
+// 生薬メダル（冬・クリーンな3等分シート、テキストなし）: 1536×1024、横3列均等グリッド
+// 並び順は左から人参・乾姜・白朮（アイテム_生薬メダル3種類(冬).md準拠。乾姜だけは
+// 種・成長段階を持たないSeedKindだが、メダルは新規意匠のためここで抽出する）
+{
+  const CW = 1536 / 3
+  ;['ninjin', 'kankyou', 'byakujutsu'].forEach((kind, c) => {
+    jobs.push({
+      src: 'medal_winter.webp',
+      rect: [Math.round(c * CW), 0, Math.round(CW), 1024],
+      out: `items/medal_${kind}.png`,
+    })
+  })
+}
+
 // トリカ三面図（C_Torika.webp）: 1448×1086、左から正面・左向き側面・背面
 // プレイヤースプライト用（右向きはゲーム側で側面を左右反転して使う）
 {
@@ -273,6 +330,19 @@ for (const job of jobs) {
     .png()
     .toFile(outPath)
   console.log(`OK: ${job.out} (${cropW}x${cropH})`)
+}
+
+// 乾姜（かんきょう）: 生姜(夏・syoukyou)と同一植物のため、種・成長4段階アセットは新規に
+// 作らず既存の生姜出力ファイルをそのままkankyou名で複製する（2026-07-23本人指示。メダルのみ上のjobsで新規抽出）
+{
+  const cols = ['field', 'bag', 'mini', 'glow']
+  for (const col of cols) {
+    copyFileSync(join(OUT, `items/seed_${col}_syoukyou.png`), join(OUT, `items/seed_${col}_kankyou.png`))
+  }
+  for (let stage = 1; stage <= 4; stage++) {
+    copyFileSync(join(OUT, `plants/syoukyou_stage${stage}.png`), join(OUT, `plants/kankyou_stage${stage}.png`))
+  }
+  console.log('OK: kankyou assets copied from syoukyou')
 }
 
 console.log('done')

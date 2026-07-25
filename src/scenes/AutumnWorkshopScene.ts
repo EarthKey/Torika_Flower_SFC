@@ -2,33 +2,69 @@ import Phaser from 'phaser'
 import { GridScene, type CellSpec } from './GridScene'
 import { playBgm } from '../state/bgm'
 import { updateHud, showMessage, showToast, showRecipePicker, showCompoundMovie } from '../ui/hud'
-import { tryCompound, RECIPES, type Recipe, type SeedKind, type Season } from '../state/gameState'
-import { WARP_ARRIVAL, WORKSHOP_WALK_MASK } from './WorkshopScene'
+import { tryCompound, RECIPES, stageUnlocks, type Recipe, type SeedKind, type Season } from '../state/gameState'
+import { WARP_ARRIVAL } from './WorkshopScene'
 
 // 秋の工房内部（ステージ3）。Koubou_autum.webpをそのまま床に敷く一枚絵背景モード。
-// 2026-07-24仮組み: 部屋の構造は春・夏と共通という前提で、当たり判定は春の工房のマスクを
-// そのまま仮流用する（Day17で夏の工房が春のマスクを共用したのと同じ判断）。
-// 調合台・レシピ本は春・夏と同じ位置に配置。四隅の転送陣は「今いる場所=秋」として自陣扱いにする。
+//
+// 2026-07-25: 本人がstage-mapperでトレースした Koubou_autum.json（D:\...\V2）を全面採用。
+// 秋の工房は装飾強化のため再生成した結果、春・夏とは部屋の形が変わっていたので、
+// これまで流用していた春のマスク（WORKSHOP_WALK_MASK）をやめて専用マスクを持つ。
+// トレースの紫マス: (5,13)(5,14)=調合台、四隅の(10,11)(10,16)(13,11)(13,16)=転送陣。
+// 緑マス(20,12)〜(20,15)=里への出口。
 
 const COLS = 30
 const ROWS = 22
 
-// 2026-07-24本人指示: 調合台・転送陣を実機評で1マス左へ移動（判定も追従）
+// Koubou_autum.json（2026-07-25・本人トレース）のmaskをそのまま採用
+const WALK_MASK = [
+  '##############################', // r0
+  '##############################', // r1
+  '##############################', // r2
+  '##############################', // r3
+  '##############################', // r4
+  '########.........#############', // r5 調合台の作業マス(c13-14)
+  '########..####################', // r6
+  '########..####################', // r7
+  '########..####################', // r8
+  '###.......####################', // r9
+  '#######...........############', // r10 転送陣 春(c11)/夏(c16)
+  '#######...........############', // r11
+  '#######...........############', // r12
+  '#######..............#########', // r13 転送陣 秋(c11)/冬(c16)
+  '#######..............#########', // r14
+  '####.................#########', // r15
+  '####.................#########', // r16 柴の立ち位置(16,6)
+  '####.................#########', // r17
+  '############....##############', // r18
+  '############....##############', // r19
+  '############....##############', // r20 下端=秋の里への出口
+  '##############################', // r21
+]
+
 const ACTION_CELLS = [
   { row: 5, col: 13 },
   { row: 5, col: 14 },
 ]
 const PANEL_ANCHOR = { row: 7, colLeft: 13, colRight: 17 }
-const BOOK_POS = { row: 8, col: 18 }
+// レシピ本は背景画像から実測した机の上の開いた本の位置（2026-07-25。春の(8,18)から移動）
+const BOOK_POS = { row: 8, col: 16 }
 const SHELF = { row: 7, col: 14 }
 
-// 四隅の転送陣（座標は春の工房と同じ仮流用から1マス左へ調整）。秋=現在地として明るく静止、冬=未実装で封印表示
+// 四隅の転送陣（トレースの紫マス）。秋=現在地として明るく静止、冬はstageUnlocks.winterで動的に接続
 const WARP_PADS = [
-  { season: '春', tex: 'warp_pink', row: 10, col: 10, exit: { targetScene: 'WorkshopScene', spawnCol: WARP_ARRIVAL.col, spawnRow: WARP_ARRIVAL.row } },
-  { season: '夏', tex: 'warp_blue', row: 10, col: 17, exit: { targetScene: 'SummerWorkshopScene', spawnCol: WARP_ARRIVAL.col, spawnRow: WARP_ARRIVAL.row } },
-  { season: '秋', tex: 'warp_yellow', row: 13, col: 10, exit: null }, // ここが秋の工房（現在地）
-  { season: '冬', tex: 'warp_green', row: 13, col: 17, exit: null }, // 冬の工房（未実装）
+  { season: '春', tex: 'warp_pink', row: 10, col: 11, exit: { targetScene: 'WorkshopScene', spawnCol: WARP_ARRIVAL.col, spawnRow: WARP_ARRIVAL.row } },
+  { season: '夏', tex: 'warp_blue', row: 10, col: 16, exit: { targetScene: 'SummerWorkshopScene', spawnCol: WARP_ARRIVAL.col, spawnRow: WARP_ARRIVAL.row } },
+  { season: '秋', tex: 'warp_yellow', row: 13, col: 11, exit: null }, // ここが秋の工房（現在地）
+  { season: '冬', tex: 'warp_green', row: 13, col: 16, exit: null }, // stageUnlocks.winterで動的に接続（下のseasonExit参照）
 ] as const
+
+// 冬の工房は季節の門の解放（stageUnlocks.winter）と連動して開通する（SummerWorkshopScene.seasonExitと同じ方式・2026-07-25）
+function seasonExit(season: string): { targetScene: string; spawnCol: number; spawnRow: number } | null {
+  if (season === '冬' && stageUnlocks.winter)
+    return { targetScene: 'WinterWorkshopScene', spawnCol: WARP_ARRIVAL.col, spawnRow: WARP_ARRIVAL.row }
+  return null
+}
 
 export class AutumnWorkshopScene extends GridScene {
   protected sceneSeason: Season = 'autumn'
@@ -38,21 +74,22 @@ export class AutumnWorkshopScene extends GridScene {
   constructor() {
     super(
       'AutumnWorkshopScene',
-      { type: 'image', textureKey: 'bg_autumn_workshop', cols: COLS, rows: ROWS, walkMask: WORKSHOP_WALK_MASK },
-      15,
+      { type: 'image', textureKey: 'bg_autumn_workshop', cols: COLS, rows: ROWS, walkMask: WALK_MASK },
+      14,
       19,
     )
   }
 
   protected specials(): Record<string, CellSpec> {
-    const specs: Record<string, CellSpec> = {
-      // 里側の工房入口が(11,23)のため、戻り先も同じ縦通路(23)の1マス下に更新（2026-07-24）
-      '20,14': { exit: { targetScene: 'AutumnHomeScene', spawnCol: 23, spawnRow: 12 } },
-      '20,15': { exit: { targetScene: 'AutumnHomeScene', spawnCol: 23, spawnRow: 12 } },
+    // 里側の工房入口が(11,23)のため、戻り先は同じ縦通路(23)の1マス下。出口はトレースどおり4マス
+    const specs: Record<string, CellSpec> = {}
+    for (const col of [12, 13, 14, 15]) {
+      specs[`20,${col}`] = { exit: { targetScene: 'AutumnHomeScene', spawnCol: 23, spawnRow: 12 } }
     }
     for (const pad of WARP_PADS) {
-      specs[`${pad.row},${pad.col}`] = pad.exit
-        ? { exit: pad.exit }
+      const exit = pad.exit ?? seasonExit(pad.season)
+      specs[`${pad.row},${pad.col}`] = exit
+        ? { exit }
         : pad.season === '秋'
           ? { data: { message: 'ここは秋の工房の転送陣。今いる場所だ' } }
           : { data: { message: `${pad.season}の転送陣はまだ固く封印されている……` } }
@@ -76,7 +113,7 @@ export class AutumnWorkshopScene extends GridScene {
       const img = this.add.image(pad.col * 32 + 16, pad.row * 32 + 16, `${pad.tex}_1`)
       this.fitImage(img, 46)
       img.setDepth(3)
-      if (pad.exit) animatedPads.push({ img, tex: pad.tex })
+      if (pad.exit ?? seasonExit(pad.season)) animatedPads.push({ img, tex: pad.tex })
       else if (pad.season !== '秋') img.setAlpha(0.35)
     }
 

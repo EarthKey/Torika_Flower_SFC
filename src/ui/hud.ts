@@ -147,11 +147,57 @@ function showKusuriCard(r: Recipe) {
   cardEl.style.display = 'flex'
 }
 
+// ── モーダル選択ウインドウ共通の入力ロック（2026-07-25追加） ──────────
+// レシピ選択・薬渡し・依頼分岐の3つは、DOMを画面に重ねているだけでPhaser側の入力は生きたままだった。
+// そのためウインドウを開いている最中にSPACEを押すと、後ろのGridSceneがそのキーを拾って
+// 「調合台をもう一度調べる」「NPCにもう一度話しかける」が発火し、選択ウインドウが多重に開いたり
+// 会話が巻き戻ったりしていた（2026-07-25本人報告「薬の選択のときにスペースを押すと選択できてしまう」）。
+// 調合ムービー（showCompoundMovie）が既に採っていた「開いている間はキー入力を止める」方式に揃える。
+//
+// GridScene.update()はこのフラグを見て、開いている間の移動・アクションを丸ごとスキップする。
+// あわせてキャプチャフェーズでkeydownを食い止め、閉じた瞬間の同じキー入力が
+// Phaser側へ抜けて即座に再発火することも防ぐ（ムービー実装と同じ理由）。
+
+let openOverlays = 0
+let overlayKeyGuard: ((e: KeyboardEvent) => void) | null = null
+
+// GridScene.update()から参照（選択ウインドウ表示中はSPACE等のゲーム内アクションを無視するため）
+export function isOverlayOpen(): boolean {
+  return openOverlays > 0
+}
+
+function lockGameInput() {
+  openOverlays++
+  if (overlayKeyGuard) return
+  overlayKeyGuard = (e: KeyboardEvent) => {
+    // 選択はクリック操作のみ。キー入力はここで握りつぶし、後ろのゲームへ渡さない
+    e.stopPropagation()
+    e.preventDefault()
+  }
+  window.addEventListener('keydown', overlayKeyGuard, true)
+}
+
+function unlockGameInput() {
+  openOverlays = Math.max(0, openOverlays - 1)
+  if (openOverlays > 0 || !overlayKeyGuard) return
+  window.removeEventListener('keydown', overlayKeyGuard, true)
+  overlayKeyGuard = null
+}
+
 // ── レシピ選択ウインドウ（工房の調合台で開く） ──────────
 // 覚えている処方を一覧表示し、クリックで調合を試みる。素材不足の行は薄暗く表示（クリックは可能で、
 // 不足内容のメッセージは呼び出し側が出す）。背景クリックでキャンセル
 
 let pickerEl: HTMLDivElement | null = null
+let pickerOpen = false
+
+// 二重にunlockしないよう、開いているときだけ閉じる（背景クリックと行クリックの両方から呼ばれる）
+function closeRecipePicker() {
+  if (!pickerOpen) return
+  pickerOpen = false
+  if (pickerEl) pickerEl.style.display = 'none'
+  unlockGameInput()
+}
 
 export function showRecipePicker(onPick: (recipe: Recipe) => void) {
   if (!pickerEl) {
@@ -163,7 +209,7 @@ export function showRecipePicker(onPick: (recipe: Recipe) => void) {
       background: rgba(0,0,0,0.55); z-index: 40;
     `
     pickerEl.addEventListener('click', (e) => {
-      if (e.target === pickerEl && pickerEl) pickerEl.style.display = 'none'
+      if (e.target === pickerEl && pickerEl) closeRecipePicker()
     })
     document.body.appendChild(pickerEl)
   }
@@ -203,11 +249,15 @@ export function showRecipePicker(onPick: (recipe: Recipe) => void) {
   pickerEl.querySelectorAll('[data-pick]').forEach((el) => {
     el.addEventListener('click', () => {
       const recipe = RECIPES.find((r) => r.id === (el as HTMLElement).dataset.pick)
-      if (pickerEl) pickerEl.style.display = 'none'
+      closeRecipePicker()
       if (recipe) onPick(recipe)
     })
   })
   pickerEl.style.display = 'flex'
+  if (!pickerOpen) {
+    pickerOpen = true
+    lockGameInput()
+  }
 }
 
 // ── 依頼中の話しかけ分岐（薬の話／世間話） ──────────
@@ -229,7 +279,13 @@ export function showQuestChoice(onQuest: () => void, onChat: () => void) {
     document.body.appendChild(questChoiceEl)
   }
   const el = questChoiceEl
-  const close = () => { el.style.display = 'none' }
+  let closed = false
+  const close = () => {
+    if (closed) return
+    closed = true
+    el.style.display = 'none'
+    unlockGameInput()
+  }
   el.innerHTML = `
     <div style="
       display: flex; flex-direction: column; gap: 10px;
@@ -253,6 +309,7 @@ export function showQuestChoice(onQuest: () => void, onChat: () => void) {
   el.querySelector('[data-choice="quest"]')?.addEventListener('click', () => { close(); onQuest() })
   el.querySelector('[data-choice="chat"]')?.addEventListener('click', () => { close(); onChat() })
   el.style.display = 'flex'
+  lockGameInput()
 }
 
 // ── 薬渡しウインドウ（薬依頼§9-8。NPCの依頼会話のあとに開く） ──────────
@@ -261,6 +318,15 @@ export function showQuestChoice(onQuest: () => void, onChat: () => void) {
 
 let giftEl: HTMLDivElement | null = null
 let giftCancelCb: (() => void) | undefined
+let giftOpen = false
+
+// 二重にunlockしないよう、開いているときだけ閉じる（背景クリック・キャンセル行・薬の行から呼ばれる）
+function closeGiftPicker() {
+  if (!giftOpen) return
+  giftOpen = false
+  if (giftEl) giftEl.style.display = 'none'
+  unlockGameInput()
+}
 
 export function showGiftPicker(onPick: (recipe: Recipe) => void, onCancel?: () => void) {
   if (!giftEl) {
@@ -274,14 +340,14 @@ export function showGiftPicker(onPick: (recipe: Recipe) => void, onCancel?: () =
     // 背景クリックのキャンセルは生成時に1回だけ登録する（表示のたびに登録すると多重発火する）
     giftEl.addEventListener('click', (e) => {
       if (e.target === giftEl && giftEl) {
-        giftEl.style.display = 'none'
+        closeGiftPicker()
         giftCancelCb?.()
       }
     })
     document.body.appendChild(giftEl)
   }
   giftCancelCb = onCancel
-  const close = () => { if (giftEl) giftEl.style.display = 'none' }
+  const close = () => closeGiftPicker()
 
   const owned = RECIPES.filter((r) => (gameState.kusuriCounts[r.id] ?? 0) > 0)
   const rows = owned
@@ -331,6 +397,10 @@ export function showGiftPicker(onPick: (recipe: Recipe) => void, onCancel?: () =
     })
   })
   giftEl.style.display = 'flex'
+  if (!giftOpen) {
+    giftOpen = true
+    lockGameInput()
+  }
 }
 
 // ── 調合成功のカットインムービー（§9-9・PV素材再利用） ──────────

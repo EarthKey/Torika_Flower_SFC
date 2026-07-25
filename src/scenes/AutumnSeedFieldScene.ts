@@ -4,23 +4,46 @@ import { updateHud, showMessage, showToast } from '../ui/hud'
 import { playBgm } from '../state/bgm'
 
 // 秋の種の聖域（ステージ3）。saisyu_Autum.webpをそのまま床に敷く一枚絵背景モード。
-// 2026-07-24仮組み: 当たり判定は外周のみ壁のプレースホルダー。
 // 採取ロジックは春・夏のSeedFieldSceneと同じ仕組み（クリック/Space採取・60分クールダウン）。
-// スポット位置は本人が実機スクリーンショットに色丸で指定した座標に準拠（2026-07-24・
-// 現在のスプライト位置との局所オフセットから算出）。当たり判定自体は仮組みのまま。
+//
+// 2026-07-25: 本人がstage-mapperでトレースした saisyu_Autum.json（D:\...\V2）を全面採用。
+// 当たり判定・採取スポット・戻り口をすべて実測値に置き換えた（旧: 外周のみ壁の仮マスク）。
+// トレースの紫マス=採取スポット、緑マス(21,14)(21,15)=里への戻り口。
 
 const COLS = 30
 const ROWS = 22
 
-const WALK_MASK: string[] = Array.from({ length: ROWS }, (_, r) =>
-  r === 0 || r === ROWS - 1 ? '#'.repeat(COLS) : '#' + '.'.repeat(COLS - 2) + '#',
-)
+// saisyu_Autum.json（2026-07-25・本人トレース）のmaskをそのまま採用
+const WALK_MASK = [
+  '##############################', // r0
+  '##############################', // r1
+  '##############################', // r2
+  '##############################', // r3
+  '##############..##############', // r4 奥=杏仁のスポット
+  '##############..##############', // r5
+  '##############..##############', // r6
+  '##############..##############', // r7
+  '##############..##############', // r8
+  '#############....#############', // r9
+  '#######.......##.......#######', // r10 左=麻黄(c7)・右=葛根(c22)
+  '#############.##.#############', // r11
+  '#############....#############', // r12
+  '##############..##############', // r13
+  '##############..##############', // r14
+  '##############..##############', // r15
+  '##############..##############', // r16
+  '##############..##############', // r17
+  '##############..##############', // r18
+  '##############..##############', // r19
+  '##############..##############', // r20
+  '##############..##############', // r21 下端=里への戻り口
+]
 
-// 採取スポット。左=麻黄・奥=杏仁（鳥居寄り）・右=葛根
+// 採取スポット（トレースの紫マス）。左=麻黄・奥=杏仁（鳥居寄り）・右=葛根
 const SEED_SPOTS: { cells: [number, number][]; kind: SeedKind }[] = [
   { cells: [[10, 7]], kind: 'mao' },
-  { cells: [[2, 15], [2, 16]], kind: 'kyounin' },
-  { cells: [[10, 23]], kind: 'kakkon' },
+  { cells: [[4, 14], [4, 15]], kind: 'kyounin' },
+  { cells: [[10, 22]], kind: 'kakkon' },
 ]
 
 export class AutumnSeedFieldScene extends GridScene {
@@ -31,15 +54,15 @@ export class AutumnSeedFieldScene extends GridScene {
     super(
       'AutumnSeedFieldScene',
       { type: 'image', textureKey: 'bg_autumn_seedfield', cols: COLS, rows: ROWS, walkMask: WALK_MASK },
-      15,
-      18,
+      14,
+      19,
     )
   }
 
   protected specials(): Record<string, CellSpec> {
     return {
-      '20,14': { exit: { targetScene: 'AutumnHomeScene', spawnCol: 14, spawnRow: 3 } },
-      '20,15': { exit: { targetScene: 'AutumnHomeScene', spawnCol: 14, spawnRow: 3 } },
+      '21,14': { exit: { targetScene: 'AutumnHomeScene', spawnCol: 14, spawnRow: 3 } },
+      '21,15': { exit: { targetScene: 'AutumnHomeScene', spawnCol: 14, spawnRow: 3 } },
     }
   }
 

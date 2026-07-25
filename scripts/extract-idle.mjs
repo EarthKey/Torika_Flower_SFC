@@ -21,6 +21,22 @@ import { join } from 'node:path'
 const SRC_DIR = 'D:/AIillust/CriptNinja/2026/Game/TorkaFlower/V2'
 const OUT = new URL('../public/assets/chara', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 
+// 位置合わせ方式（2026-07-25追加）:
+//   'foot' = 各コマの足元(maxY)を基準に縦を揃え、横はバウンディングボックス中心に置く（従来方式）
+//   'core' = 頭〜胴の重心を基準に縦横とも揃える
+// 従来の'foot'は「シルエット全体の外接矩形」に依存するため、尻尾・袖・髪など**体の外に大きく振れる
+// パーツがあるキャラで破綻する**。振れたぶんだけ外接矩形が広がり、中心合わせの結果として
+// 胴体が逆方向へ押し出されて、キャラ全体がガクガク横滑りして見える
+// （2026-07-25本人報告「柴の動きがカクカク・弁天も動きが激しい」。実測で柴は重心Xが28.8px、
+// 弁天は重心X 8.7px/Y 9.6px も振れていた）。
+// 'core'は外接矩形ではなく「上から45%＝頭と胴」の重心を錨にするため、尻尾や袖が動いても
+// 体幹の位置は固定される。尻尾の揺れ・耳のぴくつきといった**中身のアニメーションはそのまま残る**
+const ALIGN_MODE = {
+  shiba: 'core',
+  benten: 'core',
+}
+const CORE_RATIO = 0.45 // 錨に使う範囲（キャラ上端から高さの何割までを「頭〜胴」とみなすか）
+
 const SHEETS = [
   // 切り出し済みキャラは再実行時に有効化する。
   // ※イズナは白い衣が背景色に近く、ポケット除去の誤爆リスクがあるため強化版で再処理しないこと
@@ -31,9 +47,12 @@ const SHEETS = [
   // { src: 'C_Janome (3).webp', prefix: 'janome' }, // 蛇ノ目（ジャノメ）
   // { src: 'C_Aum (3).webp', prefix: 'aum' }, // アウン
   // { src: 'C_Ibuki (3).webp', prefix: 'ibuki' }, // イブキ
-  { src: 'C_Shiba_idle.webp', prefix: 'shiba' }, // 柴
-  { src: 'C_Nekomata_idle.webp', prefix: 'nekomata' }, // 猫又
-  { src: 'C_Benten_idle.webp', prefix: 'benten' }, // 弁天
+  { src: 'C_Shiba_idle.webp', prefix: 'shiba' }, // 柴（2026-07-25 'core'方式で再切り出し）
+  // { src: 'C_Nekomata_idle.webp', prefix: 'nekomata' }, // 猫又
+  { src: 'C_Benten_idle.webp', prefix: 'benten' }, // 弁天（2026-07-25 'core'方式で再切り出し）
+  // { src: 'C_Anne3.webp', prefix: 'anne' }, // 餡音（旧命名規則の"3"=待機モーション。C_Sakuya3.webp等と同じ並び）
+  // { src: 'C_Yui_Idle.webp', prefix: 'yui' }, // 結
+  // { src: 'C_Hayate_idle.webp', prefix: 'hayate' }, // ハヤテ
 ]
 
 const COLS = 4
@@ -263,6 +282,76 @@ for (const sheet of SHEETS) {
     }
   }
 
+  const override = FRAME_OVERRIDE[sheet.prefix] ?? {}
+  const order = cells.map((_, i) => (override[i + 1] ?? i + 1) - 1)
+
+  if (ALIGN_MODE[sheet.prefix] === 'core') {
+    // ── 'core'方式: 頭〜胴の重心を錨にして全コマを揃える ──────────
+    // 各コマについて「キャラ上端からCORE_RATIO分の高さの帯」に含まれる不透明ピクセルの重心を求める。
+    // 尻尾・袖・裾など体の外で大きく動くパーツはこの帯に入らないので、錨が振り回されない。
+    const anchors = order.map((idx) => {
+      const { data, info, b } = cells[idx]
+      const coreBottom = b.minY + Math.round((b.maxY - b.minY) * CORE_RATIO)
+      let sx = 0, sy = 0, n = 0
+      for (let y = b.minY; y <= coreBottom; y++) {
+        for (let x = b.minX; x <= b.maxX; x++) {
+          if (data[(y * info.width + x) * 4 + 3] > 0) { sx += x; sy += y; n++ }
+        }
+      }
+      return { x: sx / n, y: sy / n }
+    })
+
+    // 1コマ目を基準に、各コマの錨のズレ量（この分だけ切り出し位置をずらせば体幹が重なる）
+    const offs = anchors.map((a) => ({ dx: Math.round(a.x - anchors[0].x), dy: Math.round(a.y - anchors[0].y) }))
+
+    // キャンバスは「ズレ補正後の外接矩形の和集合」。尻尾が大きく振れてもはみ出して欠けない
+    let uMinX = Infinity, uMaxX = -Infinity, uMinY = Infinity, uMaxY = -Infinity
+    order.forEach((idx, i) => {
+      const b = cells[idx].b
+      uMinX = Math.min(uMinX, b.minX - offs[i].dx)
+      uMaxX = Math.max(uMaxX, b.maxX - offs[i].dx)
+      uMinY = Math.min(uMinY, b.minY - offs[i].dy)
+      uMaxY = Math.max(uMaxY, b.maxY - offs[i].dy)
+    })
+    const rawW = uMaxX - uMinX + 1 + PAD * 2
+    const canvasH = uMaxY - uMinY + 1 + PAD * 2
+
+    // キャンバス幅は「尻尾が振れる範囲」まで含んだ和集合なので、そのままだと体幹が中央からずれる
+    // （柴は尻尾が右に振れるぶんキャンバスが右へ伸び、体が左に12px寄っていた）。
+    // ゲーム側はスプライトを中心原点でマスに置くため、そのぶんNPCがマスからずれて見える。
+    // 体幹が必ずキャンバスの左右中央に来るよう、足りない側へ余白を足して対称にする
+    const anchorOut = Math.round(anchors[0].x) - uMinX + PAD // 1コマ目の体幹がキャンバス内で来る位置
+    const canvasW = Math.max(anchorOut, rawW - anchorOut) * 2
+    const padLeft = Math.round(canvasW / 2 - anchorOut)
+
+    // 切り出し枠はセルの外へはみ出すことがある（元シートはキャラがセル内で均等に置かれておらず、
+    // 4列目のキャラはセル左端にぴったり接している）。素のセルから切ると枠がクランプされ、
+    // そのコマだけ位置がずれて**揃えたはずなのにガタつく**。セルの四方に透明の余白を足してから
+    // 切り出すことで、はみ出しても欠けず、隣のコマが写り込むこともない
+    const M = 200
+    for (let i = 0; i < order.length; i++) {
+      const { data, info } = cells[order[i]]
+      const pw = info.width + M * 2
+      const ph = info.height + M * 2
+      const padded = new Uint8Array(pw * ph * 4) // 全画素 alpha=0 の透明で初期化
+      for (let y = 0; y < info.height; y++) {
+        const src = y * info.width * 4
+        const dst = ((y + M) * pw + M) * 4
+        padded.set(data.subarray(src, src + info.width * 4), dst)
+      }
+      const left = uMinX + M - PAD + offs[i].dx - padLeft
+      const top = uMinY + M - PAD + offs[i].dy
+      const outName = `${sheet.prefix}_idle_${i + 1}.png`
+      await sharp(Buffer.from(padded), { raw: { width: pw, height: ph, channels: 4 } })
+        .extract({ left, top, width: canvasW, height: canvasH })
+        .png()
+        .toFile(join(OUT, outName))
+      console.log(`OK: ${outName} (${canvasW}x${canvasH}) core-aligned dx=${offs[i].dx} dy=${offs[i].dy}`)
+    }
+    continue
+  }
+
+  // ── 'foot'方式（従来・既定） ──────────
   // 縦位置は「シート全体の絶対座標で揃える」のではなく、各コマの足元(maxY)を基準に揃える。
   // 元の12コマ絵に呼吸アニメ的なわずかな上下動があると、シート共通の絶対top/bottomで
   // 切り出した場合はその上下動がそのまま出力されてしまい、ゲーム内でNPCが浮き沈みして
@@ -271,10 +360,8 @@ for (const sheet of SHEETS) {
   const canvasH = Math.max(...cells.map((c) => c.b.maxY - c.b.minY + 1)) + PAD * 2
   const canvasW = Math.max(...cells.map((c) => c.b.maxX - c.b.minX + 1)) + PAD * 2
 
-  const override = FRAME_OVERRIDE[sheet.prefix] ?? {}
-  for (let i = 0; i < cells.length; i++) {
-    const srcIdx = (override[i + 1] ?? i + 1) - 1
-    const { data, info, b } = cells[srcIdx]
+  for (let i = 0; i < order.length; i++) {
+    const { data, info, b } = cells[order[i]]
     const contentW = b.maxX - b.minX + 1
     // このコマの足元(b.maxY)がキャンバス内で下からPAD分の位置に来るように上端を逆算する
     let top = b.maxY - (canvasH - 1 - PAD)

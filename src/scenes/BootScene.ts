@@ -8,6 +8,8 @@ import { RECIPES } from '../state/gameState'
 const KINDS = ['kanzou', 'syoubaku', 'taisou'] as const
 const SUMMER_KINDS = ['syakuyaku', 'keihi', 'syoukyou'] as const
 const AUTUMN_KINDS = ['mao', 'kyounin', 'kakkon'] as const
+// 乾姜(kankyou)の種・成長段階は生姜のPNGをkankyou名で複製したもの（extract-assets.mjs参照）
+const WINTER_KINDS = ['kankyou', 'ninjin', 'byakujutsu'] as const
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -32,6 +34,10 @@ export class BootScene extends Phaser.Scene {
     this.load.image('bg_autumn_home', 'assets/bg/autumn_home_stage.webp')
     this.load.image('bg_autumn_workshop', 'assets/bg/workshop_autumn_stage.webp')
     this.load.image('bg_autumn_seedfield', 'assets/bg/seedfield_autumn_stage.webp')
+    // ステージ4（冬・伊賀）の3マップ（2026-07-25仮組み）
+    this.load.image('bg_winter_home', 'assets/bg/winter_home_stage.webp')
+    this.load.image('bg_winter_workshop', 'assets/bg/workshop_winter_stage.webp')
+    this.load.image('bg_winter_seedfield', 'assets/bg/seedfield_winter_stage.webp')
 
     // プレイヤー（トリカ歩行モーション: 正面・側面・背面 × 4ポーズ。右向きは側面を反転）
     // 1=接地(右腕前) 2=直立(通過) 3=接地(左腕前・1の反転) 4=直立(通過)
@@ -43,7 +49,7 @@ export class BootScene extends Phaser.Scene {
 
     // NPC待機モーション（12コマ連続フレーム。咲耶/イズナ=第4版、シャオラン=腕組み、ネム=腰当て＋髪なびき、
     // 蛇ノ目=片腕で頬杖、アウン=仁王立ち、イブキ=両手を前で重ねる。ステージ2・2026-07-20生成）
-    for (const chara of ['sakuya', 'izuna', 'xiaolan', 'nemu', 'janome', 'aum', 'ibuki', 'shiba', 'nekomata', 'benten']) {
+    for (const chara of ['sakuya', 'izuna', 'xiaolan', 'nemu', 'janome', 'aum', 'ibuki', 'shiba', 'nekomata', 'benten', 'anne', 'yui', 'hayate']) {
       for (let f = 1; f <= 12; f++) {
         this.load.image(`${chara}_idle_${f}`, `assets/chara/${chara}_idle_${f}.png`)
       }
@@ -60,7 +66,7 @@ export class BootScene extends Phaser.Scene {
       }
     }
 
-    for (const k of [...KINDS, ...SUMMER_KINDS, ...AUTUMN_KINDS]) {
+    for (const k of [...KINDS, ...SUMMER_KINDS, ...AUTUMN_KINDS, ...WINTER_KINDS]) {
       this.load.image(`seed_field_${k}`, `assets/items/seed_field_${k}.png`)
       this.load.image(`seed_bag_${k}`, `assets/items/seed_bag_${k}.png`)
       this.load.image(`medal_${k}`, `assets/items/medal_${k}.png`)
@@ -84,8 +90,8 @@ export class BootScene extends Phaser.Scene {
     this.load.json('dialogues', 'data/dialogues.json')
 
     // BGM（SUNO制作・2026-07-18採用）。title=タイトル / stage1=春の里 / stage2=夏の里（2026-07-19生成）/
-    // seed=種の聖域 / koubou=工房 / stage3=秋ステージ用（以前作った曲の再利用。ステージ未実装のため現状は未使用）
-    for (const key of ['title', 'stage1', 'stage2', 'stage3', 'seed', 'koubou']) {
+    // stage3=秋の里 / stage4=冬の里（2026-07-25生成・§7系プロンプト）/ seed=種の聖域 / koubou=工房
+    for (const key of ['title', 'stage1', 'stage2', 'stage3', 'stage4', 'seed', 'koubou']) {
       this.load.audio(`bgm_${key}`, [`assets/bgm/${key}.ogg`, `assets/bgm/${key}.m4a`])
     }
 

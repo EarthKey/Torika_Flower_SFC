@@ -234,7 +234,7 @@ export function unlockIzunaStage4Dialogue() {
 // 解放条件: そのステージの薬依頼を全キャラ分渡し終えること（ステージ1→2は咲耶・シャオラン・ネムの3依頼）。
 // 解放は一度きり（24時間ループで依頼が復活しても門は閉じない）ためセーブに含める
 
-export const stageUnlocks = { summer: false, autumn: false }
+export const stageUnlocks = { summer: false, autumn: false, winter: false }
 
 // 夏の門を開く。今回の呼び出しで新規に開放されたときだけtrueを返す（開放の瞬間の演出メッセージ用）
 export function unlockSummer(): boolean {
@@ -248,6 +248,14 @@ export function unlockSummer(): boolean {
 export function unlockAutumn(): boolean {
   if (stageUnlocks.autumn) return false
   stageUnlocks.autumn = true
+  persist()
+  return true
+}
+
+// 冬の門を開く（ステージ3=柴・猫又・弁天の全依頼を渡し終えると解放。仕組みはunlockAutumnと同じ。2026-07-25追加）
+export function unlockWinter(): boolean {
+  if (stageUnlocks.winter) return false
+  stageUnlocks.winter = true
   persist()
   return true
 }
@@ -292,7 +300,9 @@ export interface PlotState {
   plantedAtMs: number | null // nullなら未植え
 }
 
-// 畑3区画×ステージ分（春の里・夏の里・秋の里）。マスの担当作物は固定
+// 畑3区画×ステージ分（春の里・夏の里・秋の里・冬の里）。マスの担当作物は固定。
+// 冬は乾姜(kankyou)も畑に植えられる作物として扱う（見た目は生姜のスプライトを流用するが、
+// 所持数・畑の区画はSeedKind上は独立している）
 export const plots: Record<string, PlotState> = {
   plot_kanzou: { crop: 'kanzou', plantedAtMs: null },
   plot_syoubaku: { crop: 'syoubaku', plantedAtMs: null },
@@ -303,6 +313,9 @@ export const plots: Record<string, PlotState> = {
   plot_mao: { crop: 'mao', plantedAtMs: null },
   plot_kyounin: { crop: 'kyounin', plantedAtMs: null },
   plot_kakkon: { crop: 'kakkon', plantedAtMs: null },
+  plot_kankyou: { crop: 'kankyou', plantedAtMs: null },
+  plot_ninjin: { crop: 'ninjin', plantedAtMs: null },
+  plot_byakujutsu: { crop: 'byakujutsu', plantedAtMs: null },
 }
 
 // 0=未植え, 1=種, 2=芽, 3=成長中, 4=収穫可能
@@ -578,7 +591,7 @@ interface SaveData {
   npcStates?: Record<string, NpcState> // 会話システム追加前のセーブには無い
   npcCrossTalk?: Record<string, number> // クロストーク解放数（2026-07-24追加。追加前のセーブには無い）
   seedSpotCollectedAt?: Record<SeedKind, number | null> // 採取クールダウン追加前のセーブには無い
-  stageUnlocks?: { summer?: boolean; autumn?: boolean } // 季節の門の解放状態（2026-07-19追加。追加前のセーブには無い）
+  stageUnlocks?: { summer?: boolean; autumn?: boolean; winter?: boolean } // 季節の門の解放状態（2026-07-19追加。追加前のセーブには無い）
   lastPlayedMs?: number // スロット選択画面の要約表示用
 }
 
@@ -625,6 +638,7 @@ function resetState() {
   for (const key of Object.keys(npcCrossTalk)) npcCrossTalk[key] = 0
   stageUnlocks.summer = false
   stageUnlocks.autumn = false
+  stageUnlocks.winter = false
 }
 
 function applySaveData(data: SaveData) {
@@ -661,6 +675,7 @@ function applySaveData(data: SaveData) {
   if (data.seedSpotCollectedAt) Object.assign(seedSpotCollectedAt, data.seedSpotCollectedAt)
   stageUnlocks.summer = data.stageUnlocks?.summer ?? false
   stageUnlocks.autumn = data.stageUnlocks?.autumn ?? false
+  stageUnlocks.winter = data.stageUnlocks?.winter ?? false
 }
 
 function readSlot(slot: number): SaveData | null {
