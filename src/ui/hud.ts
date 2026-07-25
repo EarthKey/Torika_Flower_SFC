@@ -82,8 +82,33 @@ export function mountHud() {
     align-items: center; justify-content: center;
     background: rgba(0,0,0,0.55); z-index: 40; cursor: pointer;
   `
-  cardEl.addEventListener('click', () => { if (cardEl) cardEl.style.display = 'none' })
+  cardEl.addEventListener('click', () => closeKusuriCard())
   document.body.appendChild(cardEl)
+}
+
+// 解説カードの開閉（2026-07-25）。他のオーバーレイと同じ入力ロックを掛けるため関数にまとめた。
+// 掛けないと、カードを見ている最中のSPACEを後ろのGridSceneが拾い、
+// カードが開いたままNPCの話しかけ（お薬の話／世間話の選択）が始まってしまう（本人報告）
+let cardOpen = false
+
+function closeKusuriCard() {
+  if (!cardOpen) return
+  cardOpen = false
+  if (cardEl) cardEl.style.display = 'none'
+  unlockGameInput()
+}
+
+function openKusuriCard() {
+  if (!cardEl) return
+  cardEl.style.display = 'flex'
+  if (cardOpen) return
+  cardOpen = true
+  // カードは「読むだけ」の画面なので、クリックだけでなくSPACE/Enter/Escでも閉じられるようにする
+  lockGameInput((e) => {
+    if (e.code === 'Space' || e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Escape') {
+      closeKusuriCard()
+    }
+  })
 }
 
 // 解説カードの中身を組み立てて表示する（§9-9: クリックすればいつでも見られる簡易図鑑）。
@@ -110,11 +135,11 @@ function showKusuriCard(r: Recipe) {
           <div style="margin-top: 4px;">
             <span style="border: 2px solid #c9a24a; border-radius: 999px; padding: 2px 14px; font-size: 18px; color: #ffe9a8;">${r.numberLabel}</span>
           </div>
-          <div style="margin-top: 10px; font-size: 13px; color: #a89468;">画面のどこかをクリックでとじる</div>
+          <div style="margin-top: 10px; font-size: 13px; color: #a89468;">画面のどこかをクリック／SPACEキーでとじる</div>
         </div>
       </div>
     `
-    cardEl.style.display = 'flex'
+    openKusuriCard()
     return
   }
   const costRow = (Object.entries(r.cost) as [SeedKind, number][])
@@ -140,11 +165,11 @@ function showKusuriCard(r: Recipe) {
         </div>
         <div style="margin-top: 14px; font-size: 18px; color: #d8c8a8;">つかう生薬（しょうやく）: ${costRow}</div>
         <div style="margin-top: 12px; font-size: 20px; line-height: 1.6;">${r.desc}</div>
-        <div style="margin-top: 14px; font-size: 14px; color: #a89468;">画面のどこかをクリックでとじる</div>
+        <div style="margin-top: 14px; font-size: 14px; color: #a89468;">画面のどこかをクリック／SPACEキーでとじる</div>
       </div>
     </div>
   `
-  cardEl.style.display = 'flex'
+  openKusuriCard()
 }
 
 // ── モーダル選択ウインドウ共通の入力ロック（2026-07-25追加） ──────────
@@ -158,28 +183,32 @@ function showKusuriCard(r: Recipe) {
 // あわせてキャプチャフェーズでkeydownを食い止め、閉じた瞬間の同じキー入力が
 // Phaser側へ抜けて即座に再発火することも防ぐ（ムービー実装と同じ理由）。
 
-let openOverlays = 0
 let overlayKeyGuard: ((e: KeyboardEvent) => void) | null = null
+// 開いているオーバーレイのスタック。各要素は「そのオーバーレイがキー入力で閉じたい場合の処理」
+// （不要ならnull）。入れ子になったときは一番上（最後に開いたもの）だけがキーを受け取る
+const overlayKeyHandlers: (((e: KeyboardEvent) => void) | null)[] = []
 
-// GridScene.update()から参照（選択ウインドウ表示中はSPACE等のゲーム内アクションを無視するため）
+// GridScene.update()から参照（オーバーレイ表示中はSPACE等のゲーム内アクションを無視するため）
 export function isOverlayOpen(): boolean {
-  return openOverlays > 0
+  return overlayKeyHandlers.length > 0
 }
 
-function lockGameInput() {
-  openOverlays++
+function lockGameInput(onKey?: (e: KeyboardEvent) => void) {
+  overlayKeyHandlers.push(onKey ?? null)
   if (overlayKeyGuard) return
   overlayKeyGuard = (e: KeyboardEvent) => {
-    // 選択はクリック操作のみ。キー入力はここで握りつぶし、後ろのゲームへ渡さない
+    // キー入力はここで握りつぶし、後ろのゲームへ渡さない。
+    // そのうえで、キーで閉じたいオーバーレイ（解説カードなど）にだけ処理を回す
     e.stopPropagation()
     e.preventDefault()
+    overlayKeyHandlers[overlayKeyHandlers.length - 1]?.(e)
   }
   window.addEventListener('keydown', overlayKeyGuard, true)
 }
 
 function unlockGameInput() {
-  openOverlays = Math.max(0, openOverlays - 1)
-  if (openOverlays > 0 || !overlayKeyGuard) return
+  overlayKeyHandlers.pop()
+  if (overlayKeyHandlers.length > 0 || !overlayKeyGuard) return
   window.removeEventListener('keydown', overlayKeyGuard, true)
   overlayKeyGuard = null
 }
@@ -266,6 +295,15 @@ export function showRecipePicker(onPick: (recipe: Recipe) => void) {
 // 依頼が残っていても、世間話を選べば通常の会話プールに合流できるようにする
 
 let questChoiceEl: HTMLDivElement | null = null
+let questChoiceOpen = false
+
+// 二重にunlockしないよう、開いているときだけ閉じる（2つの選択肢とタイトル復帰の両方から呼ばれる）
+function closeQuestChoice() {
+  if (!questChoiceOpen) return
+  questChoiceOpen = false
+  if (questChoiceEl) questChoiceEl.style.display = 'none'
+  unlockGameInput()
+}
 
 export function showQuestChoice(onQuest: () => void, onChat: () => void) {
   if (!questChoiceEl) {
@@ -279,13 +317,7 @@ export function showQuestChoice(onQuest: () => void, onChat: () => void) {
     document.body.appendChild(questChoiceEl)
   }
   const el = questChoiceEl
-  let closed = false
-  const close = () => {
-    if (closed) return
-    closed = true
-    el.style.display = 'none'
-    unlockGameInput()
-  }
+  const close = () => closeQuestChoice()
   el.innerHTML = `
     <div style="
       display: flex; flex-direction: column; gap: 10px;
@@ -309,7 +341,10 @@ export function showQuestChoice(onQuest: () => void, onChat: () => void) {
   el.querySelector('[data-choice="quest"]')?.addEventListener('click', () => { close(); onQuest() })
   el.querySelector('[data-choice="chat"]')?.addEventListener('click', () => { close(); onChat() })
   el.style.display = 'flex'
-  lockGameInput()
+  if (!questChoiceOpen) {
+    questChoiceOpen = true
+    lockGameInput()
+  }
 }
 
 // ── 薬渡しウインドウ（薬依頼§9-8。NPCの依頼会話のあとに開く） ──────────
@@ -476,10 +511,14 @@ export function setHudVisible(visible: boolean) {
   if (hudEl) hudEl.style.display = display
   if (messageEl) messageEl.style.display = display
   if (soundBtn) soundBtn.style.display = display // 音量ボタンもゲーム中のみ表示（タイトルはオプションで調整）
-  if (!visible && cardEl) cardEl.style.display = 'none' // タイトルへ戻るとき解説カードも閉じる
-  if (!visible && pickerEl) pickerEl.style.display = 'none'
-  if (!visible && giftEl) giftEl.style.display = 'none'
-  if (!visible && questChoiceEl) questChoiceEl.style.display = 'none'
+  if (!visible) closeKusuriCard() // タイトルへ戻るとき解説カードも閉じる（入力ロックも解除する）
+  // タイトルへ戻るときは各ウインドウも閉じる。display操作を直書きすると入力ロックが
+  // 解除されないまま残り、以後キーボードが一切効かなくなるので必ず専用のclose関数を通す
+  if (!visible) {
+    closeRecipePicker()
+    closeGiftPicker()
+    closeQuestChoice()
+  }
   if (!visible && compoundEl) { compoundEl.style.display = 'none'; compoundEl.innerHTML = ''; movieOpen = false }
 }
 
