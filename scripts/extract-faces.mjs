@@ -317,9 +317,18 @@ for (const sheet of SHEETS) {
 // そこで旧シートから1コマだけを切り出し、10番の追加表情として書き出す。
 // 通常の1〜9番とは別シート由来なので、顔の大きさが揃うよう出力枠を1〜9番と同じサイズに合わせる
 // （会話ウインドウは顔グラを高さ200pxで表示するため、枠が違うと切り替わりで顔だけ拡縮して見える）。
+// 人間顔シートも通常シートと同じ新仕様の3×3並び（1通常/2微笑み/3真剣/4驚き/5困り/6苦笑/
+// 7白目/8青ざめ/9ぐるぐる目）であることを2026-07-26に目視確認した。
+// 人間形態の会話は柴・猫又とも1本の中で3回続けて人間の顔を出すため、10番だけだと
+// **同じ絵が3連続**して単調になっていた（本人指摘）。そこで真剣(3)と苦笑(6)も切り出し、
+// 10=微笑み / 11=真剣 / 12=苦笑 の3枚を場面ごとに使い分ける
 const EXTRA_FACES = [
-  { src: 'C_Shiba_face (2).webp', prefix: 'shiba', cell: 2, out: 10 }, // 柴の人間形態（目を細めた笑顔）
-  { src: 'C_Nekomata_face (2).webp', prefix: 'nekomata', cell: 2, out: 10 }, // 猫又の人間形態（同）
+  { src: 'C_Shiba_face (2).webp', prefix: 'shiba', cell: 2, out: 10 }, // 柴の人間形態（微笑み・変身直後のドヤ顔）
+  { src: 'C_Shiba_face (2).webp', prefix: 'shiba', cell: 3, out: 11 }, // 同（真剣・むっとしたツッコミ用）
+  { src: 'C_Shiba_face (2).webp', prefix: 'shiba', cell: 6, out: 12 }, // 同（苦笑・照れ隠し用）
+  { src: 'C_Nekomata_face (2).webp', prefix: 'nekomata', cell: 2, out: 10 }, // 猫又の人間形態（微笑み）
+  { src: 'C_Nekomata_face (2).webp', prefix: 'nekomata', cell: 3, out: 11 }, // 同（真剣）
+  { src: 'C_Nekomata_face (2).webp', prefix: 'nekomata', cell: 6, out: 12 }, // 同（苦笑・気恥ずかしさ用）
 ]
 
 for (const extra of EXTRA_FACES) {

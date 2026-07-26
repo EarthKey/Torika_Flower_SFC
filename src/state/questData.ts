@@ -894,7 +894,7 @@ export const QUESTS_STAGE4: Quest[] = [
     ],
     wrongLines: [
       { face: 1, text: '……いや、それは違う気がするな。' },
-      { face: 6, text: 'もう一度、儂の話をよく聞いてくれ。' },
+      { face: 6, text: 'もう一度、俺の話をよく聞いてくれ。' },
     ],
   },
   {
@@ -915,7 +915,7 @@ export const QUESTS_STAGE4: Quest[] = [
     ],
     wrongLines: [
       { face: 1, text: '……いや、それは違う気がするな。' },
-      { face: 6, text: 'もう一度、儂の話をよく聞いてくれ。' },
+      { face: 6, text: 'もう一度、俺の話をよく聞いてくれ。' },
     ],
   },
   {
@@ -936,7 +936,7 @@ export const QUESTS_STAGE4: Quest[] = [
     ],
     wrongLines: [
       { face: 1, text: '……いや、それは違う気がするな。' },
-      { face: 6, text: 'もう一度、儂の話をよく聞いてくれ。' },
+      { face: 6, text: 'もう一度、俺の話をよく聞いてくれ。' },
     ],
   },
 ]

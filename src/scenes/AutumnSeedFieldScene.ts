@@ -4,7 +4,7 @@ import { updateHud, showMessage, showToast } from '../ui/hud'
 import { playBgm } from '../state/bgm'
 
 // 秋の種の聖域（ステージ3）。saisyu_Autum.webpをそのまま床に敷く一枚絵背景モード。
-// 採取ロジックは春・夏のSeedFieldSceneと同じ仕組み（クリック/Space採取・60分クールダウン）。
+// 採取ロジックは春・夏のSeedFieldSceneと同じ仕組み（クリック/Space採取・6時間クールダウン）。
 //
 // 2026-07-25: 本人がstage-mapperでトレースした saisyu_Autum.json（D:\...\V2）を全面採用。
 // 当たり判定・採取スポット・戻り口をすべて実測値に置き換えた（旧: 外周のみ壁の仮マスク）。

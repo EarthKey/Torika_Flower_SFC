@@ -11,6 +11,7 @@ import { WARP_ARRIVAL } from './WorkshopScene'
 // 秋の工房は装飾強化のため再生成した結果、春・夏とは部屋の形が変わっていたので、
 // これまで流用していた春のマスク（WORKSHOP_WALK_MASK）をやめて専用マスクを持つ。
 // トレースの紫マス: (5,13)(5,14)=調合台、四隅の(10,11)(10,16)(13,11)(13,16)=転送陣。
+// ※転送陣は2026-07-26に本人指示で左右へ1マスずつ広げ、(10,10)(10,17)(13,10)(13,17)へ移動済み。
 // 緑マス(20,12)〜(20,15)=里への出口。
 
 const COLS = 30
@@ -51,12 +52,14 @@ const PANEL_ANCHOR = { row: 7, colLeft: 13, colRight: 17 }
 const BOOK_POS = { row: 8, col: 16 }
 const SHELF = { row: 7, col: 14 }
 
-// 四隅の転送陣（トレースの紫マス）。秋=現在地として明るく静止、冬はstageUnlocks.winterで動的に接続
+// 四隅の転送陣（トレースの紫マス）。秋=現在地として明るく静止、冬はstageUnlocks.winterで動的に接続。
+// 2026-07-26本人指示で左右へ1マスずつ広げた（春・秋 c11→c10 ／ 夏・冬 c16→c17）。
+// 移動先8マスがWALK_MASK上で通行可能（'.'）であることは確認済み
 const WARP_PADS = [
-  { season: '春', tex: 'warp_pink', row: 10, col: 11, exit: { targetScene: 'WorkshopScene', spawnCol: WARP_ARRIVAL.col, spawnRow: WARP_ARRIVAL.row } },
-  { season: '夏', tex: 'warp_blue', row: 10, col: 16, exit: { targetScene: 'SummerWorkshopScene', spawnCol: WARP_ARRIVAL.col, spawnRow: WARP_ARRIVAL.row } },
-  { season: '秋', tex: 'warp_yellow', row: 13, col: 11, exit: null }, // ここが秋の工房（現在地）
-  { season: '冬', tex: 'warp_green', row: 13, col: 16, exit: null }, // stageUnlocks.winterで動的に接続（下のseasonExit参照）
+  { season: '春', tex: 'warp_pink', row: 10, col: 10, exit: { targetScene: 'WorkshopScene', spawnCol: WARP_ARRIVAL.col, spawnRow: WARP_ARRIVAL.row } },
+  { season: '夏', tex: 'warp_blue', row: 10, col: 17, exit: { targetScene: 'SummerWorkshopScene', spawnCol: WARP_ARRIVAL.col, spawnRow: WARP_ARRIVAL.row } },
+  { season: '秋', tex: 'warp_yellow', row: 13, col: 10, exit: null }, // ここが秋の工房（現在地）
+  { season: '冬', tex: 'warp_green', row: 13, col: 17, exit: null }, // stageUnlocks.winterで動的に接続（下のseasonExit参照）
 ] as const
 
 // 冬の工房は季節の門の解放（stageUnlocks.winter）と連動して開通する（SummerWorkshopScene.seasonExitと同じ方式・2026-07-25）

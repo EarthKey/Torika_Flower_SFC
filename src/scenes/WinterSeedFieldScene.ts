@@ -4,7 +4,7 @@ import { updateHud, showMessage, showToast } from '../ui/hud'
 import { playBgm } from '../state/bgm'
 
 // 冬の種の聖域（ステージ4）。saisyu_winter.webpをそのまま床に敷く一枚絵背景モード。
-// 採取ロジックは春・夏・秋のSeedFieldSceneと同じ仕組み（クリック/Space採取・60分クールダウン）。
+// 採取ロジックは春・夏・秋のSeedFieldSceneと同じ仕組み（クリック/Space採取・6時間クールダウン）。
 //
 // 2026-07-25: 本人がstage-mapperでトレースした saisyu_winter.json（D:\...\V2）を全面採用。
 // 当たり判定・採取スポット・戻り口をすべて実測値に置き換えた。秋の聖域と道の骨格は同じだが、

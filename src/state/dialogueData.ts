@@ -5,6 +5,7 @@ import type { DialogueLine } from '../ui/dialogue'
 import {
   allRecipesEverCrafted,
   gameState,
+  markSpecialSeen,
   markUrabanashiSeen,
   npcCrossTalk,
   npcStates,
@@ -51,6 +52,11 @@ interface CharaDialogues {
   // CryptoNinjaのキャラ設定（クラン・忍術・武器・相棒・名前の由来）を掘る特別会話。
   // 未読のうちは世間話より優先して再生し、読み終えたら通常プールへ合流する
   urabanashi?: TalkLine[]
+  // 特殊会話（2026-07-26〜）。裏話が「里の中の設定」を掘る枠なのに対し、こちらは
+  // **里の外＝現実側の話をするメタ枠**（アニメ・作品・コミュニティでの立ち位置など）。
+  // キャラが第四の壁の外を知っている前提で書く。裏話と同じ全処方コンプで解放され、
+  // 「裏話を読み終えたキャラ」から順に優先再生される（裏話→特殊会話→通常プールの順）
+  special?: TalkLine[]
 }
 
 let data: Record<string, CharaDialogues> = {}
@@ -76,17 +82,25 @@ export function pickTalk(chara: string, season: Season): DialogueLine[] | null {
   // 未読なら世間話より先に必ず1回流す。ランダムなプールに混ぜるだけだと、
   // せっかくの特別会話が他の世間話に埋もれて気づかれないため、初回だけ優先枠にしている
   const urabanashi = charaData.urabanashi
-  if (urabanashi && !gameState.urabanashiSeen[chara] && allRecipesEverCrafted()) {
+  const special = charaData.special
+  const rewardUnlocked = allRecipesEverCrafted()
+  if (urabanashi && !gameState.urabanashiSeen[chara] && rewardUnlocked) {
     markUrabanashiSeen(chara)
     return urabanashi.map((line) => toDialogueLine(line, chara, charaData.name))
+  }
+  // 特殊会話（里の外の話）は裏話の次に流す。裏話を持たないキャラは解放と同時にこちらが優先枠になる
+  if (special && !gameState.specialSeen[chara] && rewardUnlocked) {
+    markSpecialSeen(chara)
+    return special.map((line) => toDialogueLine(line, chara, charaData.name))
   }
 
   const unlocked = charaData.pools
     .filter((pool) => state.trust >= pool.minTrust && (!pool.season || pool.season === season))
     .flatMap((pool) => pool.talks)
 
-  // 既読の裏話は通常プールへ合流させ、いつでも読み返せるようにする
+  // 既読の裏話・特殊会話は通常プールへ合流させ、いつでも読み返せるようにする
   if (urabanashi && gameState.urabanashiSeen[chara]) unlocked.push(urabanashi)
+  if (special && gameState.specialSeen[chara]) unlocked.push(special)
 
   // 解放済みクロストークを常設の会話として同じローテーションに混ぜる（2026-07-25本人指示）。
   // 従来は「解放された瞬間に1回だけ」しか再生されず、解放フラグだけ先に立ったセーブでは

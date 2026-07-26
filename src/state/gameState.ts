@@ -4,9 +4,10 @@
 // 依頼の季節タグ(unlockSeason)などで共通利用する（2026-07-24〜）
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter'
 
-// 2026-07-22 テストプレイ用の一時措置（本人依頼）: 薬依頼検証中は生薬メダル・完成薬の所持数を
-// 99固定にし、調合・受け渡しで消費しても99に戻す。確認が終わったらfalseに戻すこと
-const TEST_UNLIMITED_KUSURI = true
+// テストプレイ用の一時措置: trueにすると生薬メダル・完成薬の所持数を99固定にし、
+// 調合・受け渡しで消費しても99に戻る。
+// **2026-07-26に本番設定（false）へ戻した**。検証で一時的に立てたら必ず戻すこと
+const TEST_UNLIMITED_KUSURI = false
 
 // ステージ1（春・甲賀）3種＋ステージ2（夏・風魔）3種＋ステージ3（秋・雑賀）3種＋ステージ4（冬・伊賀）3種。
 // ステージが増えるたびにここへ追加する。乾姜(kankyou)は生姜と同一植物のため種・成長段階の
@@ -114,6 +115,9 @@ export const gameState = {
   // 裏話（全処方コンプのやりこみ報酬）を、そのキャラぶん一度でも読んだか（2026-07-26〜）。
   // 未読のうちは世間話より優先して再生し、読み終わったら通常プールへ合流させる
   urabanashiSeen: {} as Record<string, boolean>,
+  // 特殊会話（里の外＝現実側の話をするメタ枠。2026-07-26〜）を、そのキャラぶん一度でも読んだか。
+  // 裏話と同じ「全処方コンプ」で解放され、裏話を読み終えたキャラから順に再生される
+  specialSeen: {} as Record<string, boolean>,
 }
 
 export function kusuriCountOf(recipeId: string): number {
@@ -296,7 +300,9 @@ export function giveKusuri(recipeId: string): boolean {
 // これにより、別のマップ（種の聖域・工房）にいる間も畑は育ち続ける。
 // 将来LocalStorageセーブに移行するときも plantedAtMs を保存するだけで済む。
 
-export const GROWTH_MS_PER_STAGE = 3000 // プロトタイプ用に短縮（本番は仕様書のタイマー値へ）
+// 本番バランス（2026-07-26本人決定）。段階1→4に3段階ぶんかかるので、
+// 4時間×3＝**半日（12時間）で収穫可能**になる。「朝植えて夕方収穫」の1日2周サイクルが軸
+export const GROWTH_MS_PER_STAGE = 4 * 60 * 60 * 1000
 
 export interface PlotState {
   crop: SeedKind
@@ -337,19 +343,22 @@ export function plantOn(plot: PlotState): boolean {
   return true
 }
 
-// ── 収穫カーブ（仕様書§9-10・2026-07-19本人サイン済み） ──────────
-// 「1日」= 植えてから収穫可能（段階4）になるまでの時間。設計原則は「待っても損しない」:
-// 収穫量の期待値を経過日数にほぼ線形（1日=1個 / 2日=1〜3個 / 3日以上=2〜4個で打ち止め）に
-// することで、毎日収穫しても数日おきでも1日あたりの効率が変わらない。上限3日で数の爆発を防ぐ
+// ── 収穫カーブ（仕様書§9-10。2026-07-26に本人指示で2段階へ再設計） ──────────
+// DAY_MS = 段階1→4に要する時間 = 半日（12時間）。刻みは実時間で次の2段階だけ:
+//   ・半日（12時間）で **1個**  … 朝植えて夕方に取りにくる周回
+//   ・丸1日（24時間）で **2〜4個ランダム** … 1日待って、花占いと同じタイミングで薬まで仕上げる周回
+// 旧カーブ（1日=1 / 2日=1〜3 / 3日=2〜4）の中間段は廃止した。
+// 旧設計の「待っても損しない（時間あたり一定）」からは意図的に外れており、
+// **1日待ったほうが時間あたりの取れ高が良い**（12h=1個/半日 に対し 24h=平均3個）。
+// 1日1回の花占いと歩調を合わせて、日課として戻ってくる動機にするため（本人判断）
 
-export const DAY_MS = GROWTH_MS_PER_STAGE * 3 // 段階1→4に要する時間を「1日」とみなす
+export const DAY_MS = GROWTH_MS_PER_STAGE * 3 // = 12時間
 
 export function harvestYieldOf(plot: PlotState, nowMs = Date.now()): number {
   if (plot.plantedAtMs === null) return 0
-  const days = Math.floor((nowMs - plot.plantedAtMs) / DAY_MS)
-  if (days >= 3) return 2 + Math.floor(Math.random() * 3) // 2〜4個
-  if (days >= 2) return 1 + Math.floor(Math.random() * 3) // 1〜3個
-  return 1
+  const halfDays = Math.floor((nowMs - plot.plantedAtMs) / DAY_MS)
+  if (halfDays >= 2) return 2 + Math.floor(Math.random() * 3) // 24時間以上=2〜4個（打ち止め）
+  return 1 // 12時間=1個
 }
 
 // 収穫。育ちきっていなければ0、収穫できたら獲得したメダル数を返す
@@ -368,10 +377,11 @@ export function addSeed(kind: SeedKind) {
 }
 
 // ── 種の採取クールダウン ──────────────────────
-// 採取スポットは1回採ると60分後に次の種が出る（2026-07-17確定・放置ゲー日課設計）。
+// 採取スポットは1回採ると**6時間**後に次の種が出る（2026-07-26本人決定。旧60分から延長）。
+// 畑が半日で1周なので、種は1周につき2回ぶん溜まる勘定になる。
 // 採取時刻を保存し、経過実時間で判定するので、ブラウザを閉じていても回復が進む。
 
-export const SEED_COOLDOWN_MS = 60 * 60 * 1000
+export const SEED_COOLDOWN_MS = 6 * 60 * 60 * 1000
 
 export const seedSpotCollectedAt: Record<SeedKind, number | null> = {
   kanzou: null,
@@ -582,6 +592,13 @@ export function markUrabanashiSeen(chara: string) {
   persist()
 }
 
+// 特殊会話を読み終えたことを記録する。裏話と同じ扱い（既読後は通常プールへ合流）
+export function markSpecialSeen(chara: string) {
+  if (gameState.specialSeen[chara]) return
+  gameState.specialSeen[chara] = true
+  persist()
+}
+
 export function tryCompound(recipe: Recipe): boolean {
   if (!canCompound(recipe)) return false
   for (const [kind, n] of Object.entries(recipe.cost) as [SeedKind, number][]) {
@@ -623,6 +640,7 @@ interface SaveData {
   npcStates?: Record<string, NpcState> // 会話システム追加前のセーブには無い
   npcCrossTalk?: Record<string, number> // クロストーク解放数（2026-07-24追加。追加前のセーブには無い）
   urabanashiSeen?: Record<string, boolean> // 裏話の既読（2026-07-26追加。追加前のセーブには無い＝全員未読扱い）
+  specialSeen?: Record<string, boolean> // 特殊会話の既読（2026-07-26追加。追加前のセーブには無い＝全員未読扱い）
   seedSpotCollectedAt?: Record<SeedKind, number | null> // 採取クールダウン追加前のセーブには無い
   stageUnlocks?: { summer?: boolean; autumn?: boolean; winter?: boolean } // 季節の門の解放状態（2026-07-19追加。追加前のセーブには無い）
   lastPlayedMs?: number // スロット選択画面の要約表示用
@@ -642,6 +660,7 @@ function persist() {
       npcStates,
       npcCrossTalk,
       urabanashiSeen: gameState.urabanashiSeen,
+      specialSeen: gameState.specialSeen,
       seedSpotCollectedAt,
       stageUnlocks,
       lastPlayedMs: Date.now(),
@@ -663,6 +682,7 @@ function resetState() {
   gameState.kusuriEverObtained = {}
   gameState.totalKusuriCrafted = 0
   gameState.urabanashiSeen = {}
+  gameState.specialSeen = {}
   for (const key of Object.keys(questDeliveredAt)) delete questDeliveredAt[key]
   for (const key of Object.keys(plots)) plots[key].plantedAtMs = null
   for (const key of Object.keys(npcStates)) {
@@ -699,8 +719,9 @@ function applySaveData(data: SaveData) {
   gameState.totalKusuriCrafted =
     data.totalKusuriCrafted ??
     Object.values(gameState.kusuriCounts).reduce((s, v) => s + (v || 0), 0)
-  // 裏話の既読は記録がなければ空のまま（＝全員未読。解放済みなら優先再生される）
+  // 裏話・特殊会話の既読は記録がなければ空のまま（＝全員未読。解放済みなら優先再生される）
   if (data.urabanashiSeen) gameState.urabanashiSeen = { ...data.urabanashiSeen }
+  if (data.specialSeen) gameState.specialSeen = { ...data.specialSeen }
   if (data.questDeliveredAt) Object.assign(questDeliveredAt, data.questDeliveredAt)
   for (const key of Object.keys(plots)) {
     if (data.plots?.[key]) plots[key].plantedAtMs = data.plots[key].plantedAtMs

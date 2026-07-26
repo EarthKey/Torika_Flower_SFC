@@ -10,6 +10,7 @@ import { WARP_ARRIVAL } from './WorkshopScene'
 // 2026-07-25: 本人がstage-mapperでトレースした Koubou_winter.json（D:\...\V2）を全面採用。
 // 冬の工房も装飾強化のため再生成しており、秋とも部屋の形が微妙に違う（全体が約1マス右にずれている）。
 // トレースの紫マス: (5,13)(5,14)=調合台、四隅の(10,12)(10,17)(13,12)(13,17)=転送陣。
+// ※転送陣は2026-07-26に本人指示で左右へ1マスずつ広げ、(10,11)(10,18)(13,11)(13,18)へ移動済み。
 // 緑マス(20,13)〜(20,16)=里への出口。
 // 四隅の転送陣は「今いる場所=冬」として自陣扱いにし、春夏秋の3陣へ接続する。
 
@@ -52,12 +53,14 @@ const BOOK_POS = { row: 8, col: 17 }
 const SHELF = { row: 7, col: 14 }
 
 // 四隅の転送陣（トレースの紫マス）。冬=現在地として明るく静止、春夏秋は開通済み
-// （冬に来られている＝3ステージ踏破済みのため）
+// （冬に来られている＝3ステージ踏破済みのため）。
+// 2026-07-26本人指示で左右へ1マスずつ広げた（春・秋 c12→c11 ／ 夏・冬 c17→c18）。
+// 移動先8マスがWALK_MASK上で通行可能（'.'）であることは確認済み
 const WARP_PADS = [
-  { season: '春', tex: 'warp_pink', row: 10, col: 12, exit: { targetScene: 'WorkshopScene', spawnCol: WARP_ARRIVAL.col, spawnRow: WARP_ARRIVAL.row } },
-  { season: '夏', tex: 'warp_blue', row: 10, col: 17, exit: { targetScene: 'SummerWorkshopScene', spawnCol: WARP_ARRIVAL.col, spawnRow: WARP_ARRIVAL.row } },
-  { season: '秋', tex: 'warp_yellow', row: 13, col: 12, exit: { targetScene: 'AutumnWorkshopScene', spawnCol: WARP_ARRIVAL.col, spawnRow: WARP_ARRIVAL.row } },
-  { season: '冬', tex: 'warp_green', row: 13, col: 17, exit: null }, // ここが冬の工房（現在地）
+  { season: '春', tex: 'warp_pink', row: 10, col: 11, exit: { targetScene: 'WorkshopScene', spawnCol: WARP_ARRIVAL.col, spawnRow: WARP_ARRIVAL.row } },
+  { season: '夏', tex: 'warp_blue', row: 10, col: 18, exit: { targetScene: 'SummerWorkshopScene', spawnCol: WARP_ARRIVAL.col, spawnRow: WARP_ARRIVAL.row } },
+  { season: '秋', tex: 'warp_yellow', row: 13, col: 11, exit: { targetScene: 'AutumnWorkshopScene', spawnCol: WARP_ARRIVAL.col, spawnRow: WARP_ARRIVAL.row } },
+  { season: '冬', tex: 'warp_green', row: 13, col: 18, exit: null }, // ここが冬の工房（現在地）
 ] as const
 
 export class WinterWorkshopScene extends GridScene {

@@ -62,8 +62,21 @@ const NPC_LAYOUT = [
 const URANAI_POST = { row: 2, cols: [23, 24] }
 
 // 畑3区画の作業マスと成長スプライトの位置。冬は1区画1マス（トレースどおり）。
-// artYは背景画像から実測した雪の畑の中心（y≒310px）に合わせた値
+// artYは背景画像から実測した雪の畑の中心（y≒310px）に合わせた値。
+// 背景の土の内側は実測で約53×78px。スプライトは**下端を土に固定**して描く（origin 0.5,1）ので、
+// sizeを大きくしても足元が動かず、上へ伸びるだけ＝通路側へはみ出さない（2026-07-26）
 const PLOT_ART_SIZE = 71 * 1.1
+// 種類ごとの表示サイズ。人参・白朮は元絵が縦長で、fitImage（長辺基準）だと横幅が痩せて
+// 畑に対して小さく見えるため大きめにする（2026-07-26本人指示「畑にうまるように」）。
+// 見た目の調整はこの数値ひとつで済む
+const PLOT_ART_SIZE_BY_CROP: Record<string, number> = {
+  ninjin: 96,
+  byakujutsu: 94,
+}
+const plotArtSize = (crop: string) => PLOT_ART_SIZE_BY_CROP[crop] ?? PLOT_ART_SIZE
+// 足元の基準線（従来の中心配置 artY + PLOT_ART_SIZE/2 と同じ位置。ここを動かさないので
+// サイズを上げても既存の見え方の足元はそのまま）
+const PLOT_ART_BASELINE = PLOT_ART_SIZE / 2
 const PLOT_LAYOUT: Record<string, { actRow: number; actCols: number[]; artX: number; artY: number }> = {
   plot_kankyou: { actRow: 11, actCols: [3], artX: 130, artY: 310 },
   plot_ninjin: { actRow: 11, actCols: [6], artX: 222, artY: 310 },
@@ -108,8 +121,10 @@ export class WinterHomeScene extends GridScene {
     for (const npc of NPC_LAYOUT) this.addNpc(npc.chara, npc.row, npc.col)
 
     for (const [plotId, pos] of Object.entries(PLOT_LAYOUT)) {
-      const img = this.add.image(pos.artX, pos.artY, `${plots[plotId].crop}_stage1`)
-      this.fitImage(img, PLOT_ART_SIZE)
+      const crop = plots[plotId].crop
+      const img = this.add.image(pos.artX, pos.artY + PLOT_ART_BASELINE, `${crop}_stage1`)
+      img.setOrigin(0.5, 1) // 足元固定（上へ伸びる）
+      this.fitImage(img, plotArtSize(crop))
       img.setDepth(5)
       img.setVisible(false)
       this.plotImages[plotId] = img
@@ -188,7 +203,7 @@ export class WinterHomeScene extends GridScene {
       const key = `${plot.crop}_stage${stage}`
       if (img.texture.key !== key) {
         img.setTexture(key)
-        this.fitImage(img, PLOT_ART_SIZE)
+        this.fitImage(img, plotArtSize(plot.crop))
       }
       img.setVisible(true)
     }

@@ -208,20 +208,30 @@ const jobs = []
   })
 }
 
-// 植物の成長4段階（冬・テキストなし版）: 1536×1024、秋と同じ上段/下段の分割比率
+// 植物の成長4段階（冬・テキストなし版）: 1536×1024、上段=large／下段=通常。
+// **上下の分割位置は種類ごとに違う**（2026-07-26実測で判明）。秋と同じ 20..560 / 580..1000 を
+// 流用していたため、白朮は下段の切り出しに**上段の下端24pxが混入**して画面上に横線が残り、
+// 人参は下段の**上端8pxが切れて**いた。シートの実際の中身の帯（背景色との差分で走査）は:
+//   白朮: 上段 y72..605 / 下段 y658..932   人参: 上段 y36..523 / 下段 y572..955
+// 帯と帯の隙間の中央で割るように、種類ごとにrectを持たせる
+const WINTER_PLANT_BANDS = {
+  ninjin: { large: [20, 515], normal: [545, 479] }, // [top, height]
+  byakujutsu: { large: [40, 575], normal: [620, 404] },
+}
 {
   const files = { ninjin: 'ninjin.webp', byakujutsu: 'byakujutsu.webp' }
   const CW = 1536 / 4
   for (const kind of WINTER_KINDS) {
+    const band = WINTER_PLANT_BANDS[kind]
     for (let stage = 1; stage <= 4; stage++) {
       jobs.push({
         src: files[kind],
-        rect: [Math.round((stage - 1) * CW), 20, Math.round(CW), 540],
+        rect: [Math.round((stage - 1) * CW), band.large[0], Math.round(CW), band.large[1]],
         out: `plants/${kind}_large_stage${stage}.png`,
       })
       jobs.push({
         src: files[kind],
-        rect: [Math.round((stage - 1) * CW), 580, Math.round(CW), 420],
+        rect: [Math.round((stage - 1) * CW), band.normal[0], Math.round(CW), band.normal[1]],
         out: `plants/${kind}_stage${stage}.png`,
       })
     }
