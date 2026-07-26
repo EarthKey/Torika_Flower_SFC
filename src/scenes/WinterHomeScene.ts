@@ -67,11 +67,12 @@ const URANAI_POST = { row: 2, cols: [23, 24] }
 // sizeを大きくしても足元が動かず、上へ伸びるだけ＝通路側へはみ出さない（2026-07-26）
 const PLOT_ART_SIZE = 71 * 1.1
 // 種類ごとの表示サイズ。人参・白朮は元絵が縦長で、fitImage（長辺基準）だと横幅が痩せて
-// 畑に対して小さく見えるため大きめにする（2026-07-26本人指示「畑にうまるように」）。
+// 畑に対して小さく見えるため大きめにしたが（07-26「畑にうまるように」）、96/94では枠を
+// はみ出したため縮小（2026-07-26本人指示: 人参=80%・白朮=70%＋ともに左へ寄せる）。
 // 見た目の調整はこの数値ひとつで済む
 const PLOT_ART_SIZE_BY_CROP: Record<string, number> = {
-  ninjin: 96,
-  byakujutsu: 94,
+  ninjin: 77, // 96 × 0.8
+  byakujutsu: 66, // 94 × 0.7
 }
 const plotArtSize = (crop: string) => PLOT_ART_SIZE_BY_CROP[crop] ?? PLOT_ART_SIZE
 // 足元の基準線（従来の中心配置 artY + PLOT_ART_SIZE/2 と同じ位置。ここを動かさないので
@@ -79,8 +80,8 @@ const plotArtSize = (crop: string) => PLOT_ART_SIZE_BY_CROP[crop] ?? PLOT_ART_SI
 const PLOT_ART_BASELINE = PLOT_ART_SIZE / 2
 const PLOT_LAYOUT: Record<string, { actRow: number; actCols: number[]; artX: number; artY: number }> = {
   plot_kankyou: { actRow: 11, actCols: [3], artX: 130, artY: 310 },
-  plot_ninjin: { actRow: 11, actCols: [6], artX: 222, artY: 310 },
-  plot_byakujutsu: { actRow: 11, actCols: [9], artX: 312, artY: 310 },
+  plot_ninjin: { actRow: 11, actCols: [6], artX: 216, artY: 310 }, // 222から左へ6px（枠内寄せ・07-26）
+  plot_byakujutsu: { actRow: 11, actCols: [9], artX: 304, artY: 310 }, // 312から左へ8px（同上）
 }
 
 export class WinterHomeScene extends GridScene {
