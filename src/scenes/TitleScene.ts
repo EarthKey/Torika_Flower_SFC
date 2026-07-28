@@ -1,8 +1,9 @@
 import Phaser from 'phaser'
 import { slotSummary, loadSlot, startNewGame, deleteSlot } from '../state/gameState'
 import { options, saveOptions, notifyVolumeChanged, type TypeSpeed } from '../state/options'
-import { setHudVisible } from '../ui/hud'
+import { setHudVisible, showSeasonGateCutin, isGateCutinOpen } from '../ui/hud'
 import { playBgm } from '../state/bgm'
+import { playSfx } from '../state/sfx'
 
 // タイトル画面（仕様書§7起動フロー・2026-07-18実装）。
 // 背景=春の里を暗めに敷き、木札ロゴ＋メニュー（はじめから/つづきから/オプション/？？？）。
@@ -24,6 +25,11 @@ const BUTTON_STYLE = `
 `
 
 const TYPE_SPEED_LABELS: Record<TypeSpeed, string> = { slow: '遅い', normal: '普通', fast: '速い' }
+
+// テスト用（2026-07-27本人依頼）: trueの間、タイトル画面でQキーを押すたびに
+// 季節の門のカットイン（夏→秋→冬の循環）を再生できる。演出は1周のプレイで3回しか
+// 見られないため、音・イラストの調整確認用。確認が終わったらfalseに戻すこと
+const TEST_CUTIN_PREVIEW = false
 
 export class TitleScene extends Phaser.Scene {
   private root: HTMLDivElement | null = null
@@ -123,7 +129,17 @@ export class TitleScene extends Phaser.Scene {
     })
   }
 
+  private cutinPreviewIndex = 0 // Qキーで夏→秋→冬を循環するテスト再生の現在位置
+
   private onKey(e: KeyboardEvent) {
+    // テスト用のカットイン再生（Qキー・TEST_CUTIN_PREVIEW時のみ）。表示中の再入は抑止
+    if (TEST_CUTIN_PREVIEW && (e.key === 'q' || e.key === 'Q') && !isGateCutinOpen()) {
+      const seasons = ['summer', 'autumn', 'winter'] as const
+      showSeasonGateCutin(seasons[this.cutinPreviewIndex % seasons.length], () => {})
+      this.cutinPreviewIndex++
+      e.preventDefault()
+      return
+    }
     if (this.navButtons.length === 0) return
     if (e.key === 'ArrowUp' || e.key === 'w') {
       this.setSelected(this.selected - 1)
@@ -218,11 +234,12 @@ export class TitleScene extends Phaser.Scene {
       options.seVolume = cycleVolume(options.seVolume)
       saveOptions()
       notifyVolumeChanged()
+      playSfx('volumeCheck') // 変更後の音量で試聴音を鳴らす（2026-07-27本人指示・7つ目のSE）
       render()
     })
     const render = () => {
       speedBtn.innerHTML = `文字送りの速さ：${TYPE_SPEED_LABELS[options.typeSpeed]}`
-      zoomBtn.innerHTML = `画面表示：${options.zoomDefault ? 'ズーム（トリカを追う）' : '全体（マップ全景）'}`
+      zoomBtn.innerHTML = `画面表示：${options.zoomDefault ? 'ズーム（酉花を追う）' : '全体（マップ全景）'}`
       bgmBtn.innerHTML = `BGM音量：${Math.round(options.bgmVolume * 100)}%`
       seBtn.innerHTML = `SE音量：${Math.round(options.seVolume * 100)}%`
     }

@@ -2,7 +2,7 @@ import Phaser from 'phaser'
 import { GridScene, type CellSpec } from './GridScene'
 import { playBgm } from '../state/bgm'
 import { updateHud, showMessage, showToast, showRecipePicker, showCompoundMovie } from '../ui/hud'
-import { tryCompound, RECIPES, stageUnlocks, type Recipe, type SeedKind, type Season } from '../state/gameState'
+import { tryCompound, RECIPES, stageUnlocks, recipeVisibleInUi, type Recipe, type SeedKind, type Season } from '../state/gameState'
 import { WARP_ARRIVAL } from './WorkshopScene'
 
 // 秋の工房内部（ステージ3）。Koubou_autum.webpをそのまま床に敷く一枚絵背景モード。
@@ -157,7 +157,8 @@ export class AutumnWorkshopScene extends GridScene {
   private buildRecipePanel() {
     const rowH = 40
     const panelWidth = 320
-    const panelHeight = rowH * RECIPES.length + 8
+    const visibleRecipes = RECIPES.filter(recipeVisibleInUi) // 未到達の季節の処方は載せない（2026-07-27）
+    const panelHeight = rowH * visibleRecipes.length + 8
     const y = PANEL_ANCHOR.row * 32 - 26 - (panelHeight - 40) / 2
     const centerX = ((PANEL_ANCHOR.colLeft + PANEL_ANCHOR.colRight) / 2) * 32 + 16
     const textStyle = { fontFamily: 'monospace', fontSize: '13px', color: '#f2e6c8' }
@@ -165,7 +166,7 @@ export class AutumnWorkshopScene extends GridScene {
     const bg = this.add.rectangle(0, 0, panelWidth, panelHeight, 0x141210, 0.82).setStrokeStyle(1, 0x8a6a3a)
     const items: Phaser.GameObjects.GameObject[] = [bg]
 
-    RECIPES.forEach((recipe, row) => {
+    visibleRecipes.forEach((recipe, row) => {
       const rowY = -panelHeight / 2 + rowH / 2 + 4 + row * rowH
       let x = -panelWidth / 2 + 14
       const cost = Object.entries(recipe.cost) as [SeedKind, number][]
@@ -195,6 +196,11 @@ export class AutumnWorkshopScene extends GridScene {
 
   private toggleRecipe() {
     this.recipeOpen = !this.recipeOpen
+    if (this.recipeOpen) {
+      // 開くたびに作り直す。滞在中に門の解放や初調合で載せられる処方が変わるため（2026-07-27）
+      this.recipeGroup.destroy()
+      this.buildRecipePanel()
+    }
     this.recipeGroup.setVisible(this.recipeOpen)
   }
 

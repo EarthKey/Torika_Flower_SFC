@@ -98,9 +98,14 @@ export class AutumnHomeScene extends GridScene {
       // 座標はトレースで「右上の通路の最奥＝到達できる一番上のマス」がr4と判明したため(3,24)(3,25)から移設（2026-07-25）
       '4,24': { data: { kind: 'seasonGate', message: '冬への門は固く閉ざされている……。この里のみんなを癒やせば、道が開けるのだろうか' } },
       '4,25': { data: { kind: 'seasonGate', message: '冬への門は固く閉ざされている……。この里のみんなを癒やせば、道が開けるのだろうか' } },
-      // 花占いのポスト（§9-11・広場中央）。調べマスは2マス
+      // 花占いのポスト（§9-11・広場中央）。調べマスは奥側(14,*)。
+      // 2026-07-26追加: 手前側(16,*)にも同じデータを登録する。ポスト本体(15,*)自体にはCellSpecが
+      // 無いため、南から正対して近づいた場合isFacingOrOnKindの「向いている先」判定が
+      // ポストマスに届かず反応しなかった（冬は調べマスが元から手前側にあり無関係だった）
       '14,14': { data: { kind: 'hanauranai', message: '花占いのポストがある。Spaceキーで「今日の花占い」' } },
       '14,15': { data: { kind: 'hanauranai', message: '花占いのポストがある。Spaceキーで「今日の花占い」' } },
+      '16,14': { data: { kind: 'hanauranai', message: '花占いのポストがある。Spaceキーで「今日の花占い」' } },
+      '16,15': { data: { kind: 'hanauranai', message: '花占いのポストがある。Spaceキーで「今日の花占い」' } },
     }
     // 畑3区画。作業マスは1区画あたり2マスあり、どちらに立ってもその区画を操作できる
     for (const [plotId, pos] of Object.entries(PLOT_LAYOUT)) {
@@ -170,7 +175,7 @@ export class AutumnHomeScene extends GridScene {
 
   protected onAction(spec: CellSpec | undefined) {
     const data = spec?.data as { kind?: string } | undefined
-    if (data?.kind === 'hanauranai') {
+    if (data?.kind === 'hanauranai' || this.isFacingOrOnKind('hanauranai')) {
       openDialogue(fortuneLines())
       return
     }

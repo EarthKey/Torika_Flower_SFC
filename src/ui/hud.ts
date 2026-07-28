@@ -1,8 +1,9 @@
 // UIはCanvasの上にHTML/CSSで重ねる方針（仕様書§7）。プロトタイプ段階の簡易HUD。
 // 薬の表示は§9-9（2026-07-19確定）: 薬名テキストは常時表示せずアイコンのみ。
 // クリックで解説カード（薬名＋ふりがな＋番号＋構成生薬＋短い解説）＝簡易図鑑を兼ねる。
-import { gameState, RECIPES, KIND_LABELS_RUBY, KIND_STAGE, stageUnlocks, canCompound, takeUrabanashiUnlockNotice, type Recipe, type SeedKind } from '../state/gameState'
+import { gameState, RECIPES, KIND_LABELS_RUBY, KIND_STAGE, stageUnlocks, canCompound, recipeVisibleInUi, takeUrabanashiUnlockNotice, type Recipe, type SeedKind } from '../state/gameState'
 import { options, saveOptions, notifyVolumeChanged } from '../state/options'
+import { playSfx } from '../state/sfx'
 
 let hudEl: HTMLDivElement | null = null
 let messageEl: HTMLDivElement | null = null
@@ -11,6 +12,7 @@ let toastContainer: HTMLDivElement | null = null
 let soundBtn: HTMLButtonElement | null = null
 let howtoBtn: HTMLButtonElement | null = null
 let cardEl: HTMLDivElement | null = null
+let howtoGuideArrowEl: HTMLDivElement | null = null
 
 export function mountHud() {
   hudEl = document.createElement('div')
@@ -80,6 +82,32 @@ export function mountHud() {
   `
   howtoBtn.addEventListener('click', () => openHowto())
   document.body.appendChild(howtoBtn)
+
+  // イントロ最後の案内用「遊び方ボタンを指す上向き矢印」（2026-07-27本人指示）。
+  // 「わからなくなったらみんなに聞いて」ではなく「遊び方をいつでも見返せる」ことを教える導線。
+  // 種の聖域・畑・工房を指すPhaser側の矢印(guide_arrow・40x46)はワールド座標前提のため、
+  // 画面固定のHUDボタンを指すここだけはDOM側で作る。サイズは本人指示で他の矢印の2倍(80x92)
+  howtoGuideArrowEl = document.createElement('div')
+  howtoGuideArrowEl.id = 'howto-guide-arrow'
+  howtoGuideArrowEl.style.cssText = `
+    position: fixed; top: 50px; right: 100px; width: 80px; height: 92px;
+    z-index: 26; pointer-events: none; display: none;
+    animation: howto-arrow-bob 0.42s ease-in-out infinite alternate;
+  `
+  howtoGuideArrowEl.innerHTML = `
+    <div style="position:absolute; left:50%; top:40px; transform:translateX(-50%);
+      width:34px; height:48px; background:#e23b2e; border:3px solid #ffffff; box-sizing:border-box;"></div>
+    <div style="position:absolute; left:50%; top:0; transform:translateX(-50%);
+      width:0; height:0; border-left:24px solid transparent; border-right:24px solid transparent;
+      border-bottom:44px solid #ffffff;"></div>
+    <div style="position:absolute; left:50%; top:6px; transform:translateX(-50%);
+      width:0; height:0; border-left:20px solid transparent; border-right:20px solid transparent;
+      border-bottom:36px solid #e23b2e;"></div>
+  `
+  document.body.appendChild(howtoGuideArrowEl)
+  const arrowStyle = document.createElement('style')
+  arrowStyle.textContent = `@keyframes howto-arrow-bob { from { transform: translateY(0); } to { transform: translateY(10px); } }`
+  document.head.appendChild(arrowStyle)
 
   // 薬アイコンのクリックで解説カードを開く（HUDはpointer-events:noneだが、
   // 薬アイコンだけauto指定で受ける。innerHTML再構築に耐えるようhudEl側で委譲）
@@ -417,6 +445,7 @@ function closeRecipePicker() {
 }
 
 export function showRecipePicker(onPick: (recipe: Recipe) => void) {
+  playSfx('confirm') // 調合台を調べた決定音
   if (!pickerEl) {
     pickerEl = document.createElement('div')
     pickerEl.id = 'recipe-picker'
@@ -431,7 +460,21 @@ export function showRecipePicker(onPick: (recipe: Recipe) => void) {
     document.body.appendChild(pickerEl)
   }
 
+  // 未解放ステージの生薬を使う処方はネタバレになるため、名前も材料も明かさず「？」の
+  // シークレット枠として表示する（2026-07-27本人指示）。一度でも調合済みならそれ以降は解放扱い
   const rows = RECIPES.map((r) => {
+    if (!recipeVisibleInUi(r)) {
+      return `
+        <div style="
+          display: flex; align-items: center; gap: 16px;
+          padding: 10px 16px; border: 2px solid #5a4c34;
+          border-radius: 8px; opacity: 0.55;
+          background: rgba(40,30,18,0.6);
+        ">
+          <img src="assets/items/kusuri/kusuri_unknown.png" style="height: 64px; image-rendering: pixelated;">
+          <div style="font-size: 22px; font-weight: bold;">？？？？？</div>
+        </div>`
+    }
     const ok = canCompound(r)
     const costRow = (Object.entries(r.cost) as [SeedKind, number][])
       .map(([kind, n]) => `${icon(`assets/items/medal_${kind}.png`)}×${n}`)
@@ -671,6 +714,7 @@ export function showCompoundMovie(onEnd: () => void) {
     window.removeEventListener('keydown', onKeyDown, true)
     el.style.display = 'none'
     el.innerHTML = ''
+    playSfx('compound') // 調合成功のファンファーレ（ムービー終了・スキップの両方で鳴る）
     onEnd()
   }
 
@@ -687,6 +731,81 @@ export function showCompoundMovie(onEnd: () => void) {
   el.style.display = 'flex'
 }
 
+// ── 季節の門解放カットイン（2026-07-27本人指示） ──────────
+// 門の解放を下部メッセージだけで伝えると見落とされやすいため、開いた門の向こうに次の季節の
+// ステージが見える横長イラスト（3:2・人物なし）をフェードインで挟む。クリック/キーでスキップ可、
+// 操作がなくても一定時間で自動終了。画像が未配置（読み込み失敗）のときはカットインを
+// スキップして従来どおりの遷移だけを行う（プロンプト正本: assets_prompts/演出_季節の門解放.md）
+let gateCutinEl: HTMLDivElement | null = null
+let gateCutinOpen = false
+
+export function isGateCutinOpen(): boolean {
+  return gateCutinOpen
+}
+
+export function showSeasonGateCutin(season: 'summer' | 'autumn' | 'winter', onEnd: () => void) {
+  if (!gateCutinEl) {
+    gateCutinEl = document.createElement('div')
+    gateCutinEl.id = 'gate-cutin'
+    gateCutinEl.style.cssText = `
+      position: fixed; inset: 0; display: none;
+      align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.85); z-index: 40; cursor: pointer;
+      opacity: 0; transition: opacity 0.45s ease;
+    `
+    document.body.appendChild(gateCutinEl)
+  }
+  const el = gateCutinEl
+
+  gateCutinOpen = true
+  let finished = false
+  let autoTimer: number | undefined
+  const onKeyDown = (e: KeyboardEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
+    finish()
+  }
+  const finish = () => {
+    if (finished) return
+    finished = true
+    gateCutinOpen = false
+    window.clearTimeout(autoTimer)
+    window.removeEventListener('keydown', onKeyDown, true)
+    el.style.opacity = '0'
+    window.setTimeout(() => {
+      el.style.display = 'none'
+      el.innerHTML = ''
+      onEnd()
+    }, 450)
+  }
+
+  const labels = { summer: '夏の里への道がひらけた！', autumn: '秋の里への道がひらけた！', winter: '冬の里への道がひらけた！' }
+  el.innerHTML = `
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 14px;">
+      <img src="assets/effects/gate_${season}.webp" style="
+        width: min(720px, 88vw); aspect-ratio: 3/2; object-fit: cover;
+        border: 4px solid #c9a24a; border-radius: 6px; background: #000;
+      ">
+      <div style="font-family: monospace; font-size: 26px; font-weight: bold; color: #ffe9a8;
+        text-shadow: 0 2px 6px rgba(0,0,0,0.8);">${labels[season]}</div>
+    </div>
+  `
+  const img = el.querySelector('img')!
+  // 画像がまだ用意されていない間はカットイン自体を出さずに即遷移する
+  img.addEventListener('error', () => finish())
+  el.addEventListener('click', finish, { once: true })
+  window.addEventListener('keydown', onKeyDown, true)
+  el.style.display = 'flex'
+  playSfx('gate') // 重い門のゴゴゴ（カットインの表示と同時）
+  requestAnimationFrame(() => { el.style.opacity = '1' })
+  autoTimer = window.setTimeout(finish, 3200)
+}
+
+// イントロで「遊び方」ボタンを指す上向き矢印の表示切り替え
+export function setHowtoGuideArrow(show: boolean) {
+  if (howtoGuideArrowEl) howtoGuideArrowEl.style.display = show ? 'block' : 'none'
+}
+
 function refreshSoundButton() {
   if (!soundBtn) return
   soundBtn.textContent = options.masterVolume >= 1 ? '🔊' : options.masterVolume >= 0.5 ? '🔉' : '🔇'
@@ -700,6 +819,7 @@ export function setHudVisible(visible: boolean) {
   if (messageEl) messageEl.style.display = display
   if (soundBtn) soundBtn.style.display = display // 音量ボタンもゲーム中のみ表示（タイトルはオプションで調整）
   if (howtoBtn) howtoBtn.style.display = display // 遊び方ボタンも同様
+  if (!visible) setHowtoGuideArrow(false) // タイトルへ戻るとき矢印も消す
   if (!visible) closeKusuriCard() // タイトルへ戻るとき解説カードも閉じる（入力ロックも解除する）
   if (!visible) closeHowto() // 遊び方ビューアも同様（lockの取り残し防止）
   // タイトルへ戻るときは各ウインドウも閉じる。display操作を直書きすると入力ロックが
@@ -710,6 +830,7 @@ export function setHudVisible(visible: boolean) {
     closeQuestChoice()
   }
   if (!visible && compoundEl) { compoundEl.style.display = 'none'; compoundEl.innerHTML = ''; movieOpen = false }
+  if (!visible && gateCutinEl) { gateCutinEl.style.display = 'none'; gateCutinEl.innerHTML = ''; gateCutinOpen = false }
 }
 
 // 獲得トースト: アイコン＋テキストの小さな通知をふわっと出して自動で消す
@@ -757,8 +878,10 @@ function icon(src: string): string {
 // §2解放条件と連動。2026-07-20確定: 全種類を最初から出す/初回入手まで隠す、の両案のうち
 // 「ステージ解放と同時にアイコン欄も増える」を採用。ステージが増えるほどHUDが単調に伸びていく）
 function visibleKinds(): SeedKind[] {
+  // 2026-07-27修正: 従来は「夏が開いたら春以外を全種表示」になっており、夏解放の時点で
+  // 秋・冬の生薬までHUDに並んでしまっていた。種類ごとに自分のステージの解放状態を見る
   return (Object.keys(KIND_STAGE) as SeedKind[]).filter(
-    (k) => KIND_STAGE[k] === 'spring' || stageUnlocks.summer,
+    (k) => KIND_STAGE[k] === 'spring' || stageUnlocks[KIND_STAGE[k] as 'summer' | 'autumn' | 'winter'],
   )
 }
 
@@ -775,8 +898,9 @@ export function updateHud() {
   const seedRow = kinds.map((k) => `${icon(`assets/items/seed_bag_${k}.png`)}${s.seeds[k]}`).join('')
   const medalRow = kinds.map((k) => `${icon(`assets/items/medal_${k}.png`)}${s.medals[k]}`).join('')
   // 薬はアイコンのみ（§9-9）。一度でも調合したことがあればクリックで解説カード（所持数0でも図鑑として残す・2026-07-21〜）、
-  // 未調合=グレーの「?」（収集要素）。所持数の増減はkusuriCountsだが、表示の可否はkusuriEverObtainedで判定する
-  const kusuriRow = RECIPES.map((r) => {
+  // 未調合=グレーの「?」（収集要素）。所持数の増減はkusuriCountsだが、表示の可否はkusuriEverObtainedで判定する。
+  // 未到達の季節の処方は「?」枠ごと出さない（2026-07-27修正。種・メダル欄と同じく到達に応じて伸びる）
+  const kusuriRow = RECIPES.filter(recipeVisibleInUi).map((r) => {
     const count = s.kusuriCounts[r.id] ?? 0
     return s.kusuriEverObtained[r.id]
       ? `<img src="${r.icon}" data-recipe="${r.id}" title="クリックで解説" style="${ICON_STYLE}pointer-events:auto;cursor:pointer;">${count}`

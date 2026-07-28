@@ -3,7 +3,7 @@ import { GridScene, type CellSpec } from './GridScene'
 import { DOOR_ENTRY } from './WorkshopScene'
 import { playBgm } from '../state/bgm'
 import { plots, plantOn, harvestFrom, growthStageOf, stageUnlocks, unlockSummer, KIND_LABELS, KIND_LABELS_RUBY, type PlotState } from '../state/gameState'
-import { updateHud, showMessage, showToast } from '../ui/hud'
+import { updateHud, showMessage, showToast, setHowtoGuideArrow } from '../ui/hud'
 import { openDialogue, type DialogueLine } from '../ui/dialogue'
 import { fortuneLines } from '../state/fortuneData'
 import { summerGateConditionMet } from '../state/questData'
@@ -67,16 +67,16 @@ const NPC_LAYOUT = [
 // 案内役NPCのイズナ（仕様書§3）とは別に、主人公トリカ自身が喋る初めての場面。
 // face番号: 1=通常 2=にっこり 3=驚き 4=困り 5=怒り/心配 6=真剣/微笑
 // 名前欄は「漢字（読み）」形式（2026-07-19ルール）。guideは案内矢印の表示先（該当行の表示中だけ出す）
-type IntroLine = DialogueLine & { guide?: 'seed' | 'field' | 'workshop' }
+type IntroLine = DialogueLine & { guide?: 'seed' | 'field' | 'workshop' | 'howto' }
 const INTRO_NAME = '酉花（トリカ）'
 const INTRO_LINES: IntroLine[] = [
   { speaker: 'torika', name: INTRO_NAME, face: 2, text: 'わたしは酉花（トリカ）。この里で「花守り」をつとめる、花の薬師だよ。よろしくね！' },
-  { speaker: 'torika', name: INTRO_NAME, face: 1, text: 'わたしのお仕事は、薬草を育ててお薬を作ること。目指すは、心をやわらげるお薬『甘麦大棗湯（かんばくたいそうとう）』！' },
+  { speaker: 'torika', name: INTRO_NAME, face: 1, text: 'わたしのお仕事は、薬草を育ててお薬を作ること。目指すは、里のみんなを、お薬で助けること！' },
   { speaker: 'torika', name: INTRO_NAME, face: 6, guide: 'seed', text: 'まずは上の鳥居をくぐって「種の聖域」へ。甘草（かんぞう）・小麦（しょうばく）・大棗（たいそう）、3つの種を集めてくるんだ。' },
   { speaker: 'torika', name: INTRO_NAME, face: 1, guide: 'field', text: '集めた種は左の畑にまいて、育ったら収穫。そうすると生薬（しょうやく）メダルが手に入るよ。' },
   { speaker: 'torika', name: INTRO_NAME, face: 2, guide: 'workshop', text: 'メダルが3種類そろったら、右の工房で調合！ これでお薬の完成だよ。' },
   { speaker: 'torika', name: INTRO_NAME, face: 1, text: '移動は矢印キーかWASD、行きたい場所をクリックでもOK。Spaceキーで調べたり、里のみんなとお話しできるよ。' },
-  { speaker: 'torika', name: INTRO_NAME, face: 2, text: 'わからなくなったら、みんなに話しかけてみてね。……それじゃあ、花守りのお仕事、はじめよっか！' },
+  { speaker: 'torika', name: INTRO_NAME, face: 2, guide: 'howto', text: 'わからなくなったら、右上の「遊び方」でいつでも今の説明を見返せるよ。……それじゃあ、花守りのお仕事、はじめよっか！' },
 ]
 
 // 案内矢印を出す位置（マス座標基準のキャンバス座標）。
@@ -110,10 +110,12 @@ export class HomeScene extends GridScene {
 
   // 案内矢印を対象入口の上空に表示し、上下にゆらゆら揺らす。
   // spot未指定なら消すだけ（会話が該当行を離れたとき・会話終了時）
-  private showGuideArrow(spot?: 'seed' | 'field' | 'workshop') {
+  // 'howto'は画面固定の「遊び方」ボタンを指すため、ワールド座標ではなくHUD側のDOM矢印を使う
+  private showGuideArrow(spot?: 'seed' | 'field' | 'workshop' | 'howto') {
     this.guideArrow?.destroy()
     this.guideArrow = undefined
-    if (!spot) return
+    setHowtoGuideArrow(spot === 'howto')
+    if (!spot || spot === 'howto') return
     this.ensureArrowTexture()
     const pos = GUIDE_SPOTS[spot]
     const arrow = this.add.image(pos.x, pos.y, 'guide_arrow').setDepth(30)
@@ -146,7 +148,7 @@ export class HomeScene extends GridScene {
       // 季節の門の前（門前の道の突き当たり）。解放判定はonEnterで毎回行う
       // （§2解放条件・2026-07-19確定: 依頼3件をすべて渡すと開く。specialsはシーン生成時に
       // 固まるため、滞在中に解放された場合もonEnter側の判定なら即座に通れる）
-      '3,25': { data: { kind: 'seasonGate', message: '季節の門は固く閉ざされている……。次の季節へ進むには、まだ何かが足りないようだ' } },
+      '3,25': { data: { kind: 'seasonGate', message: '季節の門は固く閉ざされている……。次の季節の里へ進むには、まだ何かが足りないようだ' } },
       // 花占いのポスト（§9-11）: ポスト本体は(18,26)-(19,26)を占有し通行不可（onReadyでblockCell）。
       // 調べるマスはその手前(17,26)（2026-07-19実機評: 台の上に乗って見えたため1マス拡張）
       '17,26': { data: { kind: 'hanauranai', message: '花占いのポストがある。Spaceキーで「今日の花占い」' } },
@@ -249,7 +251,7 @@ export class HomeScene extends GridScene {
   protected onAction(spec: CellSpec | undefined) {
     // 花占い（§9-11）: トリカの独白。結果は日付で決まり、同じ日は何度見ても同じ
     const data = spec?.data as { kind?: string } | undefined
-    if (data?.kind === 'hanauranai') {
+    if (data?.kind === 'hanauranai' || this.isFacingOrOnKind('hanauranai')) {
       openDialogue(fortuneLines())
       return
     }

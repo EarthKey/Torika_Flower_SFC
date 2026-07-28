@@ -7,6 +7,7 @@
 // （踏み込む場合はfact-check→本人サインのフロー対象。§9-11）
 
 import type { DialogueLine } from '../ui/dialogue'
+import { playSfx } from './sfx'
 
 interface FortuneFlower {
   name: string
@@ -62,7 +63,7 @@ interface FortuneLuck {
 // 2026-07-19改修: 結果名（3倍表示・単独ページ）と詳細文（次ページ）に分離
 // 2026-07-22改修（本人指示）: 末吉はめまい顔(9)、大吉は結果発表後のセリフを笑い顔(2)＋発表直後に「やったー！」を追加
 const LUCKS: FortuneLuck[] = [
-  { label: '大吉', face: 3, faceAfter: 2, labelSuffix: 'やったー！', text: '今日はなにをやってもうまくいきそう。はりきっていこー！' },
+  { label: '大吉', face: 4, faceAfter: 2, labelSuffix: 'やったー！', text: '今日はなにをやってもうまくいきそう。はりきっていこー！' },
   { label: '中吉', face: 2, text: 'いい感じいい感じ。この調子でいこう。' },
   { label: '吉', face: 1, text: 'おだやかな一日になりそう。いつもどおりが、いちばんだね。' },
   { label: '小吉', face: 1, text: 'ちいさな「いいこと」を見逃さないでね、ってことかな。' },
@@ -85,6 +86,7 @@ const TEST_RANDOM_FORTUNE = false
 // 花と運勢は別々の素数で混ぜて、日ごとの組み合わせが単純な循環にならないようにする。
 // 2026-07-19改修（本人指示）: 花名は2倍・運勢結果は3倍で拡大表示し、詳細な結果は次のページへ分離
 export function fortuneLines(): DialogueLine[] {
+  playSfx('fortune') // 紙をめくるような軽い音（占いを開いた瞬間）
   const seed = TEST_RANDOM_FORTUNE ? Math.floor(Math.random() * 1_000_000) : todaySeed()
   const flower = FLOWERS[(seed * 13 + 7) % FLOWERS.length]
   const luck = LUCKS[(seed * 31 + 3) % LUCKS.length]

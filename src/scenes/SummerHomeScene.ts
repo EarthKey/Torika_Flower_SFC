@@ -179,7 +179,7 @@ export class SummerHomeScene extends GridScene {
 
   protected onAction(spec: CellSpec | undefined) {
     const data = spec?.data as { kind?: string } | undefined
-    if (data?.kind === 'hanauranai') {
+    if (data?.kind === 'hanauranai' || this.isFacingOrOnKind('hanauranai')) {
       openDialogue(fortuneLines())
       return
     }

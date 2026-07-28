@@ -8,7 +8,7 @@
 // activeQuestForはそのキャラの「まだ渡していない最初の依頼」を返すので、渡し終えるたびに
 // 自然と次の依頼（ステージ3以降で追加予定の復習枠など）へ進む形になる
 
-import { gameState, questDeliveredAt, unlockCrossTalkTier, type Season } from './gameState'
+import { anySeasonRecipeCrafted, gameState, questDeliveredAt, unlockCrossTalkTier, type Season } from './gameState'
 
 // 薬プレゼントの好感度ボーナス（話しかけ+1に対する二段構え。§9-8）
 export const GIFT_TRUST_BONUS = 2
@@ -40,13 +40,13 @@ export const QUESTS: Quest[] = [
     name: '咲耶（サクヤ）',
     recipeId: 'kanzoto',
     requestLines: [
-      { face: 4, text: 'あ……トリカ、ちょうどよかった。実はさ、修行で号令をかけすぎちゃって……喉がイガイガして声が出しにくいんだ。' },
+      { face: 4, text: 'あ……酉花、ちょうどよかった。実はさ、修行で号令をかけすぎちゃって……喉がイガイガして声が出しにくいんだ。' },
       { face: 5, text: 'しかも咳き込むと喉にひびいて痛くて……。このままじゃ、明日の修行に差しつかえるよ〜。' },
-      { face: 1, text: 'ねえトリカ、こういうときに合うお薬って、作れたりしない？' },
+      { face: 1, text: 'ねえ酉花、こういうときに合うお薬って、作れたりしない？' },
     ],
     thanksLines: [
       { face: 3, text: 'えっ、もう作ってくれたの！？' },
-      { face: 2, text: 'ありがと、トリカ！これで思いっきり声が出せるよ。しばらく喉は大事にするね！' },
+      { face: 2, text: 'ありがと、酉花！これで思いっきり声が出せるよ。しばらく喉は大事にするね！' },
     ],
     wrongLines: [
       { face: 4, text: 'うーん……それも良いお薬なんだろうけど、あたしの今の症状に合うのかな？' },
@@ -60,13 +60,13 @@ export const QUESTS: Quest[] = [
     name: 'シャオラン',
     recipeId: 'kanbakutaisouto',
     requestLines: [
-      { face: 4, text: '……あ、トリカ。あのね……最近、夜、布団に入ってもなかなか寝つけなくて……。' },
+      { face: 4, text: '……あ、酉花。あのね……最近、夜、布団に入ってもなかなか寝つけなくて……。' },
       { face: 8, text: 'この里に来たばかりで、気持ちが追いつかないのかな……。ささいなことで、涙が出そうになるんだ……。' },
       { face: 6, text: '……こういうとき、心をやわらげてくれるお薬って……あるのかな……？' },
     ],
     thanksLines: [
       { face: 3, text: 'これ……あたしに……？' },
-      { face: 2, text: '……ありがとう、トリカ。……今夜は、ゆっくり眠れる気がする……。えへへ。' },
+      { face: 2, text: '……ありがとう、酉花。……今夜は、ゆっくり眠れる気がする……。えへへ。' },
     ],
     wrongLines: [
       { face: 4, text: '……えっと、その……気持ちだけで、うれしいんだけど……。' },
@@ -80,7 +80,7 @@ export const QUESTS: Quest[] = [
     name: 'ネム',
     recipeId: 'kanbakutaisouto',
     requestLines: [
-      { face: 4, text: 'ん、トリカちゃん……。実はさ、気持ちが昂ぶって、そわそわ落ち着かないんだよね。' },
+      { face: 4, text: 'ん、酉花ちゃん……。実はさ、気持ちが昂ぶって、そわそわ落ち着かないんだよね。' },
       { face: 5, text: '弟のイチヤのことが心配でさ。胸がざわざわして、ため息ばかり増えるの。……らしくないでしょ？' },
       { face: 1, text: 'あんたのお薬で、少し楽になったりしないかな。' },
     ],
@@ -105,14 +105,14 @@ export const QUESTS_STAGE2: Quest[] = [
     name: 'アウン',
     recipeId: 'shakuyakukanzoto',
     requestLines: [
-      { face: 5, text: '……トリカ、ちょうどいいところに。実はさ、夜中に足がつって飛び起きるんだ。ここ最近、毎晩みたいに。' },
+      { face: 5, text: '……酉花、ちょうどいいところに。実はさ、夜中に足がつって飛び起きるんだ。ここ最近、毎晩みたいに。' },
       { face: 8, text: '急にふくらはぎがぎゅっと痛くなってさ……夏の走り込み、ちょっとやりすぎたかもしれない。' },
       { face: 1, text: '兄貴のアトザは、これくらい平気な顔してこなしてたけどな……。俺には、まだ早かったみたいだ。' },
-      { face: 6, text: 'な、トリカ。こういうときに効くお薬、なんとかならないか？' },
+      { face: 6, text: 'な、酉花。こういうときに効くお薬、なんとかならないか？' },
     ],
     thanksLines: [
       { face: 3, text: 'おお、マジか！　もう作ってくれたのか！' },
-      { face: 2, text: 'ありがとな、トリカ！　これで夜中に飛び起きずに済みそうだ。……兄貴にも自慢しとくわ！' },
+      { face: 2, text: 'ありがとな、酉花！　これで夜中に飛び起きずに済みそうだ。……兄貴にも自慢しとくわ！' },
     ],
     wrongLines: [
       { face: 4, text: 'ん……悪いお薬じゃないんだろうけど、俺の足のつりには合わなそうだな。' },
@@ -126,7 +126,7 @@ export const QUESTS_STAGE2: Quest[] = [
     name: '蛇ノ目（ジャノメ）',
     recipeId: 'keishito',
     requestLines: [
-      { face: 1, text: '……トリカか。ちょうどいい、聞いてくれ。かぜのひき始めみたいに、ゾクゾクするんだ。' },
+      { face: 1, text: '……酉花か。ちょうどいい、聞いてくれ。かぜのひき始めみたいに、ゾクゾクするんだ。' },
       { face: 6, text: 'じんわり汗は出てるのに、寒気がとれない。……夕立に打たれたのが、まずかったな。' },
       { face: 2, text: '相棒のオロチにも心配された。……俺にしては珍しいことだ。' },
       { face: 1, text: '何か、合う薬があれば……くれると助かる。' },
@@ -147,7 +147,7 @@ export const QUESTS_STAGE2: Quest[] = [
     name: 'イブキ',
     recipeId: 'keishikashakuyakuto',
     requestLines: [
-      { face: 4, text: 'トリカさん……少し、相談してもいいですか。おなかが張って、しくしく痛むんです。' },
+      { face: 4, text: '酉花さん……少し、相談してもいいですか。おなかが張って、しくしく痛むんです。' },
       { face: 8, text: '調子も不安定で……ゆるくなったり、止まったり。冷たいものを食べすぎたのが、いけなかったみたいです。' },
       { face: 1, text: '相棒のヤーマにも、そんなに食べるからだと呆れられました。……返す言葉もありません。' },
       { face: 6, text: 'もし、合うお薬があれば……分けていただけますか。' },
@@ -168,41 +168,20 @@ export const QUESTS_STAGE2: Quest[] = [
 // （activeQuestForは配列の並び順で最初の未達成依頼を返すため）
 export const QUESTS_SPRING_SEASONAL: Quest[] = [
   {
-    id: 'sakuya_keishininjinto',
-    unlockSeason: 'summer',
-    chara: 'sakuya',
-    name: '咲耶（サクヤ）',
-    recipeId: 'keishininjinto',
-    requestLines: [
-      { face: 4, text: 'トリカ、ちょっと聞いてくれる？' },
-      { face: 5, text: '最近、冷房で体が冷えたせいか頭が痛くて。' },
-      { face: 8, text: '動悸もして、みぞおちのあたりがひんやりするんだ。' },
-      { face: 1, text: 'こういうときに合うお薬、作れないかな？' },
-    ],
-    thanksLines: [
-      { face: 3, text: 'えっ、もうできたの！？　助かる〜。' },
-      { face: 2, text: 'ありがと、トリカ！　これで冷房も怖くないよ。' },
-    ],
-    wrongLines: [
-      { face: 4, text: 'うーん……悪くはないんだろうけど、今の症状とはちょっと違う気がするな。' },
-      { face: 1, text: 'もう一回、さっきの話思い出してみて！' },
-    ],
-  },
-  {
     id: 'sakuya_shakuyakukanzoto',
-    unlockSeason: 'autumn',
+    unlockSeason: 'summer',
     chara: 'sakuya',
     name: '咲耶（サクヤ）',
     recipeId: 'shakuyakukanzoto',
     requestLines: [
-      { face: 4, text: 'トリカ、また相談していい？' },
+      { face: 4, text: '酉花、また相談していい？' },
       { face: 5, text: '稽古のあと、足がつって飛び起きることがあるんだ。' },
       { face: 8, text: 'ふくらはぎが急にぎゅっと痛くなって、たまらないんだよね。' },
       { face: 1, text: '前と同じお薬じゃなくて、今度はこの症状に合うやつ、作れる？' },
     ],
     thanksLines: [
       { face: 3, text: 'お、もう用意してくれてたんだ！' },
-      { face: 2, text: 'ありがと、トリカ！　これで安心して稽古できるよ。' },
+      { face: 2, text: 'ありがと、酉花！　これで安心して稽古できるよ。' },
     ],
     wrongLines: [
       { face: 4, text: 'うーん、それだと足のつりには効かなそうだな。' },
@@ -211,23 +190,44 @@ export const QUESTS_SPRING_SEASONAL: Quest[] = [
   },
   {
     id: 'sakuya_kanbakutaisouto',
-    unlockSeason: 'winter',
+    unlockSeason: 'autumn',
     chara: 'sakuya',
     name: '咲耶（サクヤ）',
     recipeId: 'kanbakutaisouto',
     requestLines: [
-      { face: 4, text: 'トリカ……ちょっとだけ、聞いてほしいことがあって。' },
+      { face: 4, text: '酉花……ちょっとだけ、聞いてほしいことがあって。' },
       { face: 6, text: '最近、なんでもないのに急に泣きそうになるんだ。' },
       { face: 8, text: '夜も何だか気持ちが落ち着かなくて……。' },
       { face: 1, text: 'こういうときに、心を落ち着かせてくれるお薬ってある？' },
     ],
     thanksLines: [
-      { face: 3, text: 'トリカ……ありがとう。' },
-      { face: 2, text: 'なんだか、少し肩の力が抜けた気がする。冬はこれで乗り切れそう！' },
+      { face: 3, text: '酉花……ありがとう。' },
+      { face: 2, text: 'なんだか、少し肩の力が抜けた気がする。これでまた、頑張れそう！' },
     ],
     wrongLines: [
       { face: 6, text: '……ありがたいけど、今のあたしにはちょっと違う気がするな。' },
       { face: 1, text: 'もう一回、話を聞いてみてくれる？' },
+    ],
+  },
+  {
+    id: 'sakuya_keishininjinto',
+    unlockSeason: 'winter',
+    chara: 'sakuya',
+    name: '咲耶（サクヤ）',
+    recipeId: 'keishininjinto',
+    requestLines: [
+      { face: 4, text: '酉花、ちょっと聞いてくれる？' },
+      { face: 5, text: '最近、季節外れの冷え込みで体が冷えたのか、頭が痛くて。' },
+      { face: 8, text: '動悸もして、みぞおちのあたりがひんやりするんだ。' },
+      { face: 1, text: 'こういうときに合うお薬、作れないかな？' },
+    ],
+    thanksLines: [
+      { face: 3, text: 'えっ、もうできたの！？　助かる〜。' },
+      { face: 2, text: 'ありがと、酉花！　これで寒さも怖くないよ。' },
+    ],
+    wrongLines: [
+      { face: 4, text: 'うーん……悪くはないんだろうけど、今の症状とはちょっと違う気がするな。' },
+      { face: 1, text: 'もう一回、さっきの話思い出してみて！' },
     ],
   },
   {
@@ -237,14 +237,14 @@ export const QUESTS_SPRING_SEASONAL: Quest[] = [
     name: 'シャオラン',
     recipeId: 'shakuyakukanzoto',
     requestLines: [
-      { face: 4, text: '……あ、トリカ。ちょっといい……？' },
-      { face: 8, text: '……夏の稽古で、急に足がつることが増えて……。' },
+      { face: 4, text: '……あ、酉花。ちょっといい……？' },
+      { face: 8, text: '……このごろ、稽古で急に足がつることが増えて……。' },
       { face: 6, text: '……ふくらはぎが、ぎゅっと痛くなるの……。' },
       { face: 1, text: '……こういうとき、合うお薬……あるかな……？' },
     ],
     thanksLines: [
       { face: 3, text: '……これ、あたしに……？' },
-      { face: 2, text: '……ありがとう、トリカ。……これで、夏の稽古も怖くないかも……。' },
+      { face: 2, text: '……ありがとう、酉花。……これで、稽古も怖くないかも……。' },
     ],
     wrongLines: [
       { face: 4, text: '……ありがたいけど……それは、ちょっと違う気がする……。' },
@@ -258,7 +258,7 @@ export const QUESTS_SPRING_SEASONAL: Quest[] = [
     name: 'シャオラン',
     recipeId: 'kanzoto',
     requestLines: [
-      { face: 4, text: '……トリカ、あの……。' },
+      { face: 4, text: '……酉花、あの……。' },
       { face: 8, text: '……のど、イガイガして……声が出しにくくて……。' },
       { face: 6, text: '……咳き込むと、喉に響いて痛いの……。' },
       { face: 1, text: '……何か、合うお薬……ないかな……？' },
@@ -279,14 +279,14 @@ export const QUESTS_SPRING_SEASONAL: Quest[] = [
     name: 'シャオラン',
     recipeId: 'kanzokankyoto',
     requestLines: [
-      { face: 4, text: '……トリカ、聞いてくれる……？' },
-      { face: 8, text: '……手足の先が、ずっと冷えてる気がして……。' },
+      { face: 4, text: '……酉花、聞いてくれる……？' },
+      { face: 8, text: '……春なのに、手足の先が、ずっと冷えてる気がして……。' },
       { face: 6, text: '……お手洗いが近い気がするの……。' },
       { face: 1, text: '……こういうとき、合うお薬……あるのかな……？' },
     ],
     thanksLines: [
       { face: 3, text: '……これを、あたしに……？' },
-      { face: 2, text: '……ありがとう、トリカ。……冬は、これで乗り越えられそう……。' },
+      { face: 2, text: '……ありがとう、酉花。……季節外れの冷えも、これで乗り越えられそう……。' },
     ],
     wrongLines: [
       { face: 4, text: '……ありがたいけど……今の冷えには、合わない気がして……。' },
@@ -300,14 +300,14 @@ export const QUESTS_SPRING_SEASONAL: Quest[] = [
     name: 'ネム',
     recipeId: 'keishito',
     requestLines: [
-      { face: 4, text: 'ん、トリカちゃん。ちょっと聞いてよ。' },
-      { face: 5, text: '夏風邪かね、ゾクゾクする感じがあってさ。' },
+      { face: 4, text: 'ん、酉花ちゃん。ちょっと聞いてよ。' },
+      { face: 5, text: '季節の変わり目みたいな風邪かね、ゾクゾクする感じがあってさ。' },
       { face: 8, text: '汗はじんわり出てるのに、寒気がとれないんだよね。' },
       { face: 1, text: 'あんたのお薬、こういうときにも効いたりする？' },
     ],
     thanksLines: [
       { face: 2, text: 'お、気が利くじゃない。……ありがと。' },
-      { face: 6, text: 'これでゆっくり夏を乗り切れそう。あんた、頼りになるね。' },
+      { face: 6, text: 'これでゆっくり休めそう。あんた、頼りになるね。' },
     ],
     wrongLines: [
       { face: 1, text: 'ん〜、それはちょっと違う気がするなあ。' },
@@ -321,7 +321,7 @@ export const QUESTS_SPRING_SEASONAL: Quest[] = [
     name: 'ネム',
     recipeId: 'keishikakakkonto',
     requestLines: [
-      { face: 4, text: 'トリカちゃん、また相談させて。' },
+      { face: 4, text: '酉花ちゃん、また相談させて。' },
       { face: 5, text: '肩から首にかけて、こわばって回らないんだよね。' },
       { face: 8, text: 'なのに、じっとり汗はかいてるんだ。おかしいでしょ？' },
       { face: 1, text: 'あんたのお薬で、なんとかならない？' },
@@ -342,7 +342,7 @@ export const QUESTS_SPRING_SEASONAL: Quest[] = [
     name: 'ネム',
     recipeId: 'kanzoto',
     requestLines: [
-      { face: 4, text: 'トリカちゃん、ちょっといい？' },
+      { face: 4, text: '酉花ちゃん、ちょっといい？' },
       { face: 5, text: '喉がイガイガして、声が出しにくいんだよね。' },
       { face: 8, text: '咳き込むと喉に響いて痛くてさ。' },
       { face: 1, text: 'あんたのお薬で、楽になったりしない？' },
@@ -367,7 +367,7 @@ export const QUESTS_SUMMER_SEASONAL: Quest[] = [
     name: '蛇ノ目（ジャノメ）',
     recipeId: 'keishikakakkonto',
     requestLines: [
-      { face: 1, text: '……トリカか。また聞いてくれ。' },
+      { face: 1, text: '……酉花か。また聞いてくれ。' },
       { face: 6, text: '……首すじから肩がこわばって回しにくいんだ。' },
       { face: 2, text: '汗ばんでいるのに、首の後ろが重だるい。厄介なもんだな。' },
       { face: 1, text: '何か、合う薬があれば助かる。' },
@@ -388,9 +388,9 @@ export const QUESTS_SUMMER_SEASONAL: Quest[] = [
     name: '蛇ノ目（ジャノメ）',
     recipeId: 'maoto',
     requestLines: [
-      { face: 1, text: '……トリカ、今度は少し違う話だ。' },
+      { face: 1, text: '……酉花、今度は少し違う話だ。' },
       { face: 6, text: '……今度は、汗がまったく出ないんだ。' },
-      { face: 2, text: '節々が痛くて、寒気も強い。厄介な方だな。' },
+      { face: 2, text: '節々が痛くて、寒気も強い。夏だというのに、厄介な方だな。' },
       { face: 1, text: '合う薬、頼めるか。' },
     ],
     thanksLines: [
@@ -409,14 +409,14 @@ export const QUESTS_SUMMER_SEASONAL: Quest[] = [
     name: 'アウン',
     recipeId: 'keishikakakkonto',
     requestLines: [
-      { face: 5, text: '……トリカ、また頼みがあるんだ。' },
+      { face: 5, text: '……酉花、また頼みがあるんだ。' },
       { face: 8, text: '首から肩がこわばって回らないんだよな。' },
       { face: 6, text: '汗はかいてるのに、首の後ろが重だるいんだ。' },
-      { face: 1, text: 'な、トリカ。合う薬、なんとかならないか？' },
+      { face: 1, text: 'な、酉花。合う薬、なんとかならないか？' },
     ],
     thanksLines: [
       { face: 3, text: 'おお、もうできたのか！　さすがだな。' },
-      { face: 2, text: 'ありがとな、トリカ！　これで肩も軽くなりそうだ。' },
+      { face: 2, text: 'ありがとな、酉花！　これで肩も軽くなりそうだ。' },
     ],
     wrongLines: [
       { face: 4, text: 'ん……悪くないんだろうけど、俺のこの症状には合わなそうだな。' },
@@ -430,14 +430,14 @@ export const QUESTS_SUMMER_SEASONAL: Quest[] = [
     name: 'アウン',
     recipeId: 'kakkonto',
     requestLines: [
-      { face: 5, text: 'トリカ、今度はちょっと手強い相談だ。' },
+      { face: 5, text: '酉花、今度はちょっと手強い相談だ。' },
       { face: 8, text: 'かぜのひき始めなのに、全然汗が出ないんだ。' },
-      { face: 6, text: '首の後ろがぞくぞくして、こわばる感じがする。' },
+      { face: 6, text: '夏だってのに、首の後ろがぞくぞくして、こわばる感じがする。' },
       { face: 1, text: 'な、頼む。合う薬、作れないか？' },
     ],
     thanksLines: [
       { face: 3, text: 'マジか！　もうできてたのか！' },
-      { face: 2, text: 'ありがとな、トリカ！　これでかぜも吹き飛ばせそうだ。' },
+      { face: 2, text: 'ありがとな、酉花！　これでかぜも吹き飛ばせそうだ。' },
     ],
     wrongLines: [
       { face: 4, text: 'ん……それも良いんだろうけど、俺のこの症状には合わなそうだな。' },
@@ -451,8 +451,8 @@ export const QUESTS_SUMMER_SEASONAL: Quest[] = [
     name: 'イブキ',
     recipeId: 'kanzokankyoto',
     requestLines: [
-      { face: 4, text: 'トリカさん……また相談してもいいですか。' },
-      { face: 8, text: '体の芯が冷えて、口の中に薄い唾がたまるんです。' },
+      { face: 4, text: '酉花さん……また相談してもいいですか。' },
+      { face: 8, text: '季節外れの冷えでしょうか……体の芯が冷えて、口の中に薄い唾がたまるんです。' },
       { face: 1, text: '冷えると、お手洗いが近くなる気がします。' },
       { face: 6, text: 'もし、合うお薬があれば……分けていただけますか。' },
     ],
@@ -472,7 +472,7 @@ export const QUESTS_SUMMER_SEASONAL: Quest[] = [
     name: 'イブキ',
     recipeId: 'maoto',
     requestLines: [
-      { face: 4, text: 'トリカさん、今度は少し違う相談です。' },
+      { face: 4, text: '酉花さん、今度は少し違う相談です。' },
       { face: 8, text: '今度は熱が高くて、節々が痛むんです。' },
       { face: 1, text: '汗はまったく出ていなくて……。' },
       { face: 6, text: 'もし、合うお薬があれば……お願いできますか。' },
@@ -499,14 +499,14 @@ export const QUESTS_STAGE3: Quest[] = [
     name: '柴（シバ）',
     recipeId: 'maoto',
     requestLines: [
-      { face: 4, text: 'トリカ、聞いてくれ！' },
+      { face: 4, text: '酉花、聞いてくれ！' },
       { face: 5, text: '熱が高くて、体のフシブシが痛いんだ。' },
       { face: 8, text: '寒気が強いのに、汗はまったく出ていないんだよ。' },
       { face: 1, text: 'こういうときに効くお薬、作れないか？' },
     ],
     thanksLines: [
       { face: 3, text: 'おお、もうできたのか！' },
-      { face: 2, text: 'ありがとな、トリカ！　これで動けそうだ！' },
+      { face: 2, text: 'ありがとな、酉花！　これで動けそうだ！' },
     ],
     wrongLines: [
       { face: 4, text: 'うーん、それだと汗が出ないこの熱には合わなそうだ。' },
@@ -520,14 +520,14 @@ export const QUESTS_STAGE3: Quest[] = [
     name: '柴（シバ）',
     recipeId: 'keishikashakuyakuto',
     requestLines: [
-      { face: 4, text: 'なあトリカ、今度は別の話なんだ。' },
+      { face: 4, text: 'なあ酉花、今度は別の話なんだ。' },
       { face: 5, text: 'おなかが張って、しくしく痛むんだ。' },
       { face: 8, text: 'お腹の調子が不安定で、ゆるくなったり止まったりするんだよ。' },
       { face: 1, text: '合う薬、なんとかならないか？' },
     ],
     thanksLines: [
       { face: 3, text: 'もうできたのか、助かる！' },
-      { face: 2, text: 'ありがとな、トリカ！　これで安心して任務に行けそうだ。' },
+      { face: 2, text: 'ありがとな、酉花！　これで安心して任務に行けそうだ。' },
     ],
     wrongLines: [
       { face: 4, text: 'んー、それはお腹の張りには合わなそうだな。' },
@@ -541,14 +541,14 @@ export const QUESTS_STAGE3: Quest[] = [
     name: '柴（シバ）',
     recipeId: 'kanzoto',
     requestLines: [
-      { face: 4, text: 'トリカ、また頼みたいことがあるんだ。' },
+      { face: 4, text: '酉花、また頼みたいことがあるんだ。' },
       { face: 5, text: '喉がイガイガして、声が出しにくいんだ。' },
       { face: 8, text: '咳き込むと喉に響いて痛いんだよ。' },
       { face: 1, text: '合う薬、作れないか？' },
     ],
     thanksLines: [
       { face: 3, text: 'おお、もう用意してくれてたのか！' },
-      { face: 2, text: 'ありがとな、トリカ！　これで声も出せそうだ。' },
+      { face: 2, text: 'ありがとな、酉花！　これで声も出せそうだ。' },
     ],
     wrongLines: [
       { face: 4, text: 'んー、それは喉には合わなそうだな。' },
@@ -562,14 +562,14 @@ export const QUESTS_STAGE3: Quest[] = [
     name: '柴（シバ）',
     recipeId: 'ninjinto',
     requestLines: [
-      { face: 4, text: 'トリカ、今度は冷えの話なんだ。' },
+      { face: 4, text: '酉花、今度は冷えの話なんだ。' },
       { face: 5, text: '胃腸が冷えて食欲がわかないんだよ。' },
       { face: 8, text: '冷たいものをとると、すぐお腹を壊すんだ。' },
       { face: 1, text: 'こういうときに合う薬、なんとかならないか？' },
     ],
     thanksLines: [
       { face: 3, text: 'もう用意してくれてたのか、助かる！' },
-      { face: 2, text: 'ありがとな、トリカ！　これで食欲も戻りそうだ。' },
+      { face: 2, text: 'ありがとな、酉花！　これで食欲も戻りそうだ。' },
     ],
     wrongLines: [
       { face: 4, text: 'んー、それは胃腸の冷えには合わなそうだな。' },
@@ -583,14 +583,14 @@ export const QUESTS_STAGE3: Quest[] = [
     name: '猫又（ねこまた）',
     recipeId: 'kanzoto',
     requestLines: [
-      { face: 4, text: 'トリカ、ちょっと聞いてほしいにゃ。' },
+      { face: 4, text: '酉花、ちょっと聞いてほしいにゃ。' },
       { face: 5, text: '喉がイガイガして、声が出しにくいにゃ。' },
       { face: 8, text: '咳き込むと喉に響いて痛いにゃ。' },
       { face: 1, text: 'こういうとき、合うお薬あるにゃ？' },
     ],
     thanksLines: [
       { face: 3, text: 'もうできたのかにゃ！？' },
-      { face: 2, text: 'ありがとにゃ、トリカ。これで喉も楽になりそうにゃ。' },
+      { face: 2, text: 'ありがとにゃ、酉花。これで喉も楽になりそうにゃ。' },
     ],
     wrongLines: [
       { face: 4, text: 'んー、それは喉には合わなそうにゃ。' },
@@ -604,14 +604,14 @@ export const QUESTS_STAGE3: Quest[] = [
     name: '猫又（ねこまた）',
     recipeId: 'keishikakakkonto',
     requestLines: [
-      { face: 4, text: 'トリカ、また相談があるにゃ。' },
+      { face: 4, text: '酉花、また相談があるにゃ。' },
       { face: 5, text: '首すじから肩がこわばって回しにくいにゃ。' },
       { face: 8, text: '汗ばんでいるのに首の後ろが重だるいにゃ。' },
       { face: 1, text: '合うお薬、作れるにゃ？' },
     ],
     thanksLines: [
       { face: 3, text: 'もう用意してくれてたのかにゃ！' },
-      { face: 2, text: 'ありがとにゃ、トリカ。これで肩も軽くなりそうにゃ。' },
+      { face: 2, text: 'ありがとにゃ、酉花。これで肩も軽くなりそうにゃ。' },
     ],
     wrongLines: [
       { face: 4, text: 'んー、それは肩のこわばりには合わなそうにゃ。' },
@@ -625,14 +625,14 @@ export const QUESTS_STAGE3: Quest[] = [
     name: '猫又（ねこまた）',
     recipeId: 'shakuyakukanzoto',
     requestLines: [
-      { face: 4, text: 'トリカ、今度は足の話なんにゃ。' },
+      { face: 4, text: '酉花、今度は足の話なんにゃ。' },
       { face: 5, text: '足がつって、飛び起きることがあるにゃ。' },
       { face: 8, text: 'ふくらはぎが急にぎゅっと痛くなるにゃ。' },
       { face: 1, text: '合うお薬、頼めるにゃ？' },
     ],
     thanksLines: [
       { face: 3, text: 'もうできてたのかにゃ！' },
-      { face: 2, text: 'ありがとにゃ、トリカ。これで安心して眠れそうにゃ。' },
+      { face: 2, text: 'ありがとにゃ、酉花。これで安心して眠れそうにゃ。' },
     ],
     wrongLines: [
       { face: 4, text: 'んー、それは足のつりには合わなそうにゃ。' },
@@ -646,14 +646,14 @@ export const QUESTS_STAGE3: Quest[] = [
     name: '猫又（ねこまた）',
     recipeId: 'maoto',
     requestLines: [
-      { face: 4, text: 'トリカ、最後にもうひとつ聞いてほしいにゃ。' },
+      { face: 4, text: '酉花、最後にもうひとつ聞いてほしいにゃ。' },
       { face: 5, text: '熱が高くて節々が痛いにゃ。' },
       { face: 8, text: '寒気が強いのに汗はまったく出ないにゃ。' },
       { face: 1, text: '合うお薬、なんとかならないにゃ？' },
     ],
     thanksLines: [
       { face: 3, text: 'もう用意してくれてたのかにゃ！' },
-      { face: 2, text: 'ありがとにゃ、トリカ。これで動けそうにゃ。' },
+      { face: 2, text: 'ありがとにゃ、酉花。これで動けそうにゃ。' },
     ],
     wrongLines: [
       { face: 4, text: 'んー、それはこの熱には合わなそうにゃ。' },
@@ -661,62 +661,20 @@ export const QUESTS_STAGE3: Quest[] = [
     ],
   },
   {
-    id: 'benten_kanzokankyoto',
-    unlockSeason: 'autumn',
-    chara: 'benten',
-    name: '弁天（べんてん）',
-    recipeId: 'kanzokankyoto',
-    requestLines: [
-      { face: 4, text: 'トリカさん、少しご相談してもよろしいかしら。' },
-      { face: 5, text: '体の芯が冷えて、口に薄い唾がたまりますわ。' },
-      { face: 8, text: '冷えるとお手洗いが近くなりますの。' },
-      { face: 1, text: 'こういうときに合うお薬、作っていただけません？' },
-    ],
-    thanksLines: [
-      { face: 3, text: 'まあ、もうご用意くださったの？' },
-      { face: 2, text: 'ありがとう、トリカさん。これで体の芯も温まりそうですわ。' },
-    ],
-    wrongLines: [
-      { face: 4, text: '……ありがたいのですけれど、今のわたくしには少し違う気がしますわ。' },
-      { face: 6, text: 'もう一度、お話を聞いていただけまして？' },
-    ],
-  },
-  {
-    id: 'benten_keishininjinto',
-    unlockSeason: 'autumn',
-    chara: 'benten',
-    name: '弁天（べんてん）',
-    recipeId: 'keishininjinto',
-    requestLines: [
-      { face: 4, text: 'トリカさん、また別のご相談ですの。' },
-      { face: 5, text: '冷えると頭痛がして、おなかもゆるくなりますわ。' },
-      { face: 8, text: '動悸がして、みぞおちのあたりが冷たいんですの。' },
-      { face: 1, text: '合うお薬、なんとかなりません？' },
-    ],
-    thanksLines: [
-      { face: 3, text: 'まあ、もうできておりましたの？' },
-      { face: 2, text: 'ありがとう、トリカさん。これで頭も軽くなりそうですわ。' },
-    ],
-    wrongLines: [
-      { face: 4, text: '……ありがたいのですけれど、今の症状には少し違う気がしますわ。' },
-      { face: 6, text: 'もう一度、お話を聞いていただけまして？' },
-    ],
-  },
-  {
     id: 'benten_kanzoto',
-    unlockSeason: 'winter',
+    unlockSeason: 'autumn',
     chara: 'benten',
     name: '弁天（べんてん）',
     recipeId: 'kanzoto',
     requestLines: [
-      { face: 4, text: 'トリカさん、少しよろしいかしら。' },
+      { face: 4, text: '酉花さん、少しよろしいかしら。' },
       { face: 5, text: '喉がイガイガして、声が出しにくくて。' },
       { face: 8, text: '咳き込むと喉に響いて痛みますの。' },
       { face: 1, text: '合うお薬、作っていただけません？' },
     ],
     thanksLines: [
       { face: 3, text: 'まあ、もう用意してくださったのね。' },
-      { face: 2, text: 'ありがとう、トリカさん。三味線も弾きやすくなりそうですわ。' },
+      { face: 2, text: 'ありがとう、酉花さん。三味線も弾きやすくなりそうですわ。' },
     ],
     wrongLines: [
       { face: 4, text: '……ありがたいのですけれど、喉には少し違う気がしますわ。' },
@@ -725,23 +683,65 @@ export const QUESTS_STAGE3: Quest[] = [
   },
   {
     id: 'benten_kanbakutaisouto',
-    unlockSeason: 'winter',
+    unlockSeason: 'autumn',
     chara: 'benten',
     name: '弁天（べんてん）',
     recipeId: 'kanbakutaisouto',
     requestLines: [
-      { face: 4, text: 'トリカさん、最後にもうひとつ聞いていただける？' },
+      { face: 4, text: '酉花さん、もうひとつ聞いていただける？' },
       { face: 6, text: 'なんでもないのに、涙が出そうになりますの。' },
       { face: 8, text: '気持ちが落ち着かない夜が続いていて。' },
       { face: 1, text: 'こういうときに合うお薬、ありませんこと？' },
     ],
     thanksLines: [
       { face: 3, text: 'まあ……これを、わたくしに？' },
-      { face: 2, text: 'ありがとう、トリカさん。今夜はゆっくり眠れそうですわ。' },
+      { face: 2, text: 'ありがとう、酉花さん。今夜はゆっくり眠れそうですわ。' },
     ],
     wrongLines: [
       { face: 6, text: '……ありがたいのですけれど、今のわたくしには少し違う気がしますわ。' },
       { face: 1, text: 'もう一度、お話を聞いていただけまして？' },
+    ],
+  },
+  {
+    id: 'benten_kanzokankyoto',
+    unlockSeason: 'winter',
+    chara: 'benten',
+    name: '弁天（べんてん）',
+    recipeId: 'kanzokankyoto',
+    requestLines: [
+      { face: 4, text: '酉花さん、少しご相談してもよろしいかしら。' },
+      { face: 5, text: '体の芯が冷えて、口に薄い唾がたまりますわ。' },
+      { face: 8, text: '冷えるとお手洗いが近くなりますの。' },
+      { face: 1, text: 'こういうときに合うお薬、作っていただけません？' },
+    ],
+    thanksLines: [
+      { face: 3, text: 'まあ、もうご用意くださったの？' },
+      { face: 2, text: 'ありがとう、酉花さん。これで体の芯も温まりそうですわ。' },
+    ],
+    wrongLines: [
+      { face: 4, text: '……ありがたいのですけれど、今のわたくしには少し違う気がしますわ。' },
+      { face: 6, text: 'もう一度、お話を聞いていただけまして？' },
+    ],
+  },
+  {
+    id: 'benten_keishininjinto',
+    unlockSeason: 'winter',
+    chara: 'benten',
+    name: '弁天（べんてん）',
+    recipeId: 'keishininjinto',
+    requestLines: [
+      { face: 4, text: '酉花さん、最後のご相談ですの。' },
+      { face: 5, text: '冷えると頭痛がして、おなかもゆるくなりますわ。' },
+      { face: 8, text: '動悸がして、みぞおちのあたりが冷たいんですの。' },
+      { face: 1, text: '合うお薬、なんとかなりません？' },
+    ],
+    thanksLines: [
+      { face: 3, text: 'まあ、もうできておりましたの？' },
+      { face: 2, text: 'ありがとう、酉花さん。これで頭も軽くなりそうですわ。' },
+    ],
+    wrongLines: [
+      { face: 4, text: '……ありがたいのですけれど、今の症状には少し違う気がしますわ。' },
+      { face: 6, text: 'もう一度、お話を聞いていただけまして？' },
     ],
   },
 ]
@@ -757,14 +757,14 @@ export const QUESTS_STAGE4: Quest[] = [
     name: '餡音（あんね）',
     recipeId: 'keishikakakkonto',
     requestLines: [
-      { face: 4, text: 'ねえトリカ、ちょっと聞いてよ！' },
+      { face: 4, text: 'ねえ酉花、ちょっと聞いてよ！' },
       { face: 5, text: '首から肩がこわばって回らないよ。' },
       { face: 8, text: '汗ばんでるのに首の後ろが重だるいの。' },
       { face: 1, text: '合うお薬、作ってくれない？' },
     ],
     thanksLines: [
       { face: 3, text: 'わあ、もうできたの！？' },
-      { face: 2, text: 'ありがとトリカ！　これで肩も軽くなりそう！' },
+      { face: 2, text: 'ありがと酉花！　これで肩も軽くなりそう！' },
     ],
     wrongLines: [
       { face: 4, text: 'んー、それだとちょっと違う気がするなあ。' },
@@ -778,14 +778,14 @@ export const QUESTS_STAGE4: Quest[] = [
     name: '餡音（あんね）',
     recipeId: 'maoto',
     requestLines: [
-      { face: 4, text: 'トリカ、今度は別の相談だよ！' },
+      { face: 4, text: '酉花、今度は別の相談だよ！' },
       { face: 5, text: '熱が高くて節々が痛いんだよね。' },
       { face: 8, text: '寒気が強いのに汗が全然出ないの。' },
       { face: 1, text: '合うお薬、なんとかならない？' },
     ],
     thanksLines: [
       { face: 3, text: 'えっ、もう用意してくれてたの！？' },
-      { face: 2, text: 'ありがとトリカ！　これで動けそう！' },
+      { face: 2, text: 'ありがと酉花！　これで動けそう！' },
     ],
     wrongLines: [
       { face: 4, text: 'んー、それだとこの熱には合わなそうだなあ。' },
@@ -799,14 +799,14 @@ export const QUESTS_STAGE4: Quest[] = [
     name: '餡音（あんね）',
     recipeId: 'kanzokankyoto',
     requestLines: [
-      { face: 4, text: 'トリカ、最後にもうひとつ聞いてよ！' },
+      { face: 4, text: '酉花、最後にもうひとつ聞いてよ！' },
       { face: 5, text: '体の芯から冷えて、口に薄い唾がたまるんだ。' },
       { face: 8, text: '冷えるとお手洗いが近くなっちゃって。' },
       { face: 1, text: '合うお薬、頼める？' },
     ],
     thanksLines: [
       { face: 3, text: 'わあ、もうできてたんだ！' },
-      { face: 2, text: 'ありがとトリカ！　これで体もぽかぽかになりそう！' },
+      { face: 2, text: 'ありがと酉花！　これで体もぽかぽかになりそう！' },
     ],
     wrongLines: [
       { face: 4, text: 'んー、それだとこの冷えには合わなそうだなあ。' },
@@ -820,7 +820,7 @@ export const QUESTS_STAGE4: Quest[] = [
     name: '結（ゆい）',
     recipeId: 'kanzokankyoto',
     requestLines: [
-      { face: 4, text: 'トリカさん、少しご相談してもいいですか。' },
+      { face: 4, text: '酉花さん、少しご相談してもいいですか。' },
       { face: 5, text: '体の芯が冷えて、口の中に薄い唾がたまるんです。' },
       { face: 8, text: '冷えると、お手洗いが近くなる気がします。' },
       { face: 1, text: '合うお薬、いただけますか。' },
@@ -841,7 +841,7 @@ export const QUESTS_STAGE4: Quest[] = [
     name: '結（ゆい）',
     recipeId: 'keishininjinto',
     requestLines: [
-      { face: 4, text: 'トリカさん、また別のご相談です。' },
+      { face: 4, text: '酉花さん、また別のご相談です。' },
       { face: 5, text: '冷えると頭痛がして、おなかもゆるくなるんです。' },
       { face: 8, text: '動悸がして、みぞおちのあたりが冷たくて。' },
       { face: 1, text: '合うお薬、作っていただけますか。' },
@@ -862,7 +862,7 @@ export const QUESTS_STAGE4: Quest[] = [
     name: '結（ゆい）',
     recipeId: 'keishikakakkonto',
     requestLines: [
-      { face: 4, text: 'トリカさん、最後にもうひとつよろしいですか。' },
+      { face: 4, text: '酉花さん、最後にもうひとつよろしいですか。' },
       { face: 5, text: '首すじから肩がこわばって回しにくいんです。' },
       { face: 8, text: '汗ばんでいるのに首の後ろが重だるくて。' },
       { face: 1, text: '合うお薬、いただけますか。' },
@@ -883,7 +883,7 @@ export const QUESTS_STAGE4: Quest[] = [
     name: 'ハヤテ',
     recipeId: 'maoto',
     requestLines: [
-      { face: 1, text: 'トリカ、少し頼みがあるのだが。' },
+      { face: 1, text: '酉花、少し頼みがあるのだが。' },
       { face: 6, text: '熱が高くて、体のフシブシが痛むんだ。' },
       { face: 2, text: '寒気が強いのに、汗がまったく出ない。' },
       { face: 1, text: '合う薬、なんとかならないか。' },
@@ -904,7 +904,7 @@ export const QUESTS_STAGE4: Quest[] = [
     name: 'ハヤテ',
     recipeId: 'shakuyakukanzoto',
     requestLines: [
-      { face: 1, text: 'トリカ、今度は少し情けない話だ。' },
+      { face: 1, text: '酉花、今度は少し情けない話だ。' },
       { face: 6, text: '急に足がつって、飛び起きることがあってな。' },
       { face: 2, text: 'ふくらはぎがぎゅっと痛くなるんだ。' },
       { face: 1, text: '合う薬、頼めるか。' },
@@ -925,7 +925,7 @@ export const QUESTS_STAGE4: Quest[] = [
     name: 'ハヤテ',
     recipeId: 'keishikashakuyakuto',
     requestLines: [
-      { face: 1, text: 'トリカ、最後にもうひとつ頼みたい。' },
+      { face: 1, text: '酉花、最後にもうひとつ頼みたい。' },
       { face: 6, text: 'おなかが張って、しくしく痛むんだ。' },
       { face: 2, text: '調子が不安定で、ゆるくなったり止まったりする。' },
       { face: 1, text: '合う薬、なんとかならないか。' },
@@ -959,14 +959,18 @@ const TEST_ALLOW_QUEST_REPEAT = false
 
 // このキャラに今アクティブな依頼があれば返す（=そのキャラに割り当てられた依頼のうち、
 // まだ渡し終えていない最初の1件。配列の並び順どおりに進む）。
-// 発動条件=薬を累計1個以上調合していること（渡して手持ち0になっても発動は維持）。
+// 発動条件（2026-07-27改定・本人指示）: 薬を累計1個以上調合していることに加え、
+// **その依頼の季節のレシピをどれか1種類調合済み**であること。新ステージに入った瞬間に
+// 全員が症状を語り出す唐突さをなくし、「新しい生薬を集めて調合を体験→依頼が動き出す」の順にする。
+// 春組の2巡目（夏タグの追加依頼）も同じゲートに乗るので、夏の薬を1つ作るまでは世間話のまま。
 // 全依頼を渡し終えたキャラはnull（＝通常の世間話に戻る。もう「お薬をねだられ続ける」ことはない）
 export function activeQuestFor(chara: string): Quest | null {
   if (gameState.totalKusuriCrafted < 1) return null
-  if (TEST_ALLOW_QUEST_REPEAT) {
-    return ALL_QUESTS.find((q) => q.chara === chara) ?? null
-  }
-  return ALL_QUESTS.find((q) => q.chara === chara && questDeliveredAt[q.id] === undefined) ?? null
+  const quest = TEST_ALLOW_QUEST_REPEAT
+    ? ALL_QUESTS.find((q) => q.chara === chara) ?? null
+    : ALL_QUESTS.find((q) => q.chara === chara && questDeliveredAt[q.id] === undefined) ?? null
+  if (!quest) return null
+  return anySeasonRecipeCrafted(quest.unlockSeason) ? quest : null
 }
 
 // ステージ1の全依頼を「渡し終えているか」。イズナの深い会話の開放条件・季節の門の解放条件（§9-8・§2）。
@@ -1038,6 +1042,11 @@ export const CROSS_TALK_TARGETS: Record<string, Partial<Record<Season, number>>>
   anne: { winter: 4 },
   yui: { winter: 4 },
   hayate: { winter: 4 },
+}
+
+// そのキャラに1件でも薬を渡し終えているか（変化の話の解放条件・2026-07-27）
+export function anyQuestDeliveredFor(chara: string): boolean {
+  return ALL_QUESTS.some((q) => q.chara === chara && questDeliveredAt[q.id] !== undefined)
 }
 
 // そのキャラの「season相当」の依頼を全部渡し終えているか（該当依頼が1件も無ければfalse）

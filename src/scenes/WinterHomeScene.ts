@@ -81,7 +81,7 @@ const PLOT_ART_BASELINE = PLOT_ART_SIZE / 2
 const PLOT_LAYOUT: Record<string, { actRow: number; actCols: number[]; artX: number; artY: number }> = {
   plot_kankyou: { actRow: 11, actCols: [3], artX: 130, artY: 310 },
   plot_ninjin: { actRow: 11, actCols: [6], artX: 216, artY: 310 }, // 222から左へ6px（枠内寄せ・07-26）
-  plot_byakujutsu: { actRow: 11, actCols: [9], artX: 304, artY: 310 }, // 312から左へ8px（同上）
+  plot_byakujutsu: { actRow: 11, actCols: [9], artX: 298, artY: 310 }, // 312から左へ8px→さらに左へ6px（2026-07-26追加調整）
 }
 
 export class WinterHomeScene extends GridScene {
@@ -163,7 +163,7 @@ export class WinterHomeScene extends GridScene {
 
   protected onAction(spec: CellSpec | undefined) {
     const data = spec?.data as { kind?: string } | undefined
-    if (data?.kind === 'hanauranai') {
+    if (data?.kind === 'hanauranai' || this.isFacingOrOnKind('hanauranai')) {
       openDialogue(fortuneLines())
       return
     }

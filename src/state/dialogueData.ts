@@ -5,12 +5,15 @@ import type { DialogueLine } from '../ui/dialogue'
 import {
   allRecipesEverCrafted,
   gameState,
+  markHengeSeen,
   markSpecialSeen,
   markUrabanashiSeen,
   npcCrossTalk,
   npcStates,
+  stageUnlocks,
   type Season,
 } from './gameState'
+import { anyQuestDeliveredFor } from './questData'
 
 interface TalkLine {
   face: number
@@ -38,6 +41,10 @@ interface DialoguePool {
   // ステージ進行で積み上がっていく特別枠はここを付けない）。付けたプールは、その季節が
   // 「今の季節」でなくなった瞬間に選択対象から外れる＝季節が進むたびに世間話がリニューアルされる
   season?: Season
+  // ステージ解放タグ（2026-07-27〜）。工房内固定NPC（シャオラン・アウン・柴・ハヤテ）は
+  // 常に自分のいる季節のまま扱われるためseasonでは絞れない。「次のステージの話題」を
+  // 時系列の矛盾なく解禁したいときはこちらを使う（例: 夏の新顔の話は夏解放後のみ）
+  requiresStage?: 'summer' | 'autumn' | 'winter'
   talks: TalkLine[][]
 }
 
@@ -57,6 +64,10 @@ interface CharaDialogues {
   // キャラが第四の壁の外を知っている前提で書く。裏話と同じ全処方コンプで解放され、
   // 「裏話を読み終えたキャラ」から順に優先再生される（裏話→特殊会話→通常プールの順）
   special?: TalkLine[]
+  // 変化（人間形態）の話（柴・猫又・2026-07-27〜）。そのキャラに薬を1件でも渡すと解放され、
+  // 初回は世間話より優先して必ず流す（裏話と同じ方式）。既読後は通常プールへ合流。
+  // 「薬をくれた恩人にだけ、本当の姿を見せる」信頼の演出のため、初対面では出さない
+  henge?: TalkLine[]
 }
 
 let data: Record<string, CharaDialogues> = {}
@@ -94,13 +105,27 @@ export function pickTalk(chara: string, season: Season): DialogueLine[] | null {
     return special.map((line) => toDialogueLine(line, chara, charaData.name))
   }
 
+  // 変化（人間形態）の話（柴・猫又・2026-07-27本人指示）: そのキャラに薬を1件でも渡すと解放。
+  // 初回は必ず流し、既読後は通常プールへ合流する
+  const henge = charaData.henge
+  if (henge && !gameState.hengeSeen[chara] && anyQuestDeliveredFor(chara)) {
+    markHengeSeen(chara)
+    return henge.map((line) => toDialogueLine(line, chara, charaData.name))
+  }
+
   const unlocked = charaData.pools
-    .filter((pool) => state.trust >= pool.minTrust && (!pool.season || pool.season === season))
+    .filter(
+      (pool) =>
+        state.trust >= pool.minTrust &&
+        (!pool.season || pool.season === season) &&
+        (!pool.requiresStage || stageUnlocks[pool.requiresStage]),
+    )
     .flatMap((pool) => pool.talks)
 
-  // 既読の裏話・特殊会話は通常プールへ合流させ、いつでも読み返せるようにする
+  // 既読の裏話・特殊会話・変化の話は通常プールへ合流させ、いつでも読み返せるようにする
   if (urabanashi && gameState.urabanashiSeen[chara]) unlocked.push(urabanashi)
   if (special && gameState.specialSeen[chara]) unlocked.push(special)
+  if (henge && gameState.hengeSeen[chara]) unlocked.push(henge)
 
   // 解放済みクロストークを常設の会話として同じローテーションに混ぜる（2026-07-25本人指示）。
   // 従来は「解放された瞬間に1回だけ」しか再生されず、解放フラグだけ先に立ったセーブでは

@@ -31,8 +31,9 @@ import {
   GIFT_TRUST_BONUS,
   type Quest,
 } from '../state/questData'
-import { showMessage, showToast, showGiftPicker, showQuestChoice, updateHud, isCompoundMovieOpen, isOverlayOpen } from '../ui/hud'
+import { showMessage, showToast, showGiftPicker, showQuestChoice, showSeasonGateCutin, updateHud, isCompoundMovieOpen, isOverlayOpen } from '../ui/hud'
 import { zoomState } from '../state/options'
+import { playSfx } from '../state/sfx'
 
 // 3エリア共通の土台。Tiled形式のマップJSON（scripts/make-maps.mjs が生成、
 // 将来はTiled GUIで編集）を読み込んで地形を描画し、通行判定つきの
@@ -257,7 +258,9 @@ export abstract class GridScene extends Phaser.Scene {
   protected addNpc(chara: string, row: number, col: number) {
     const img = this.add.image(col * TILE + TILE / 2, row * TILE + 2, `${chara}_idle_1`)
     img.setScale(CHAR_HEIGHT / img.height)
-    img.setDepth(9)
+    // 花占いのポストと同じ前後判定（2026-07-26）。固定depth(9)だとトリカ(10)が常に手前になり、
+    // NPCの背後(奥)へ回り込んでも隠れなかった
+    this.registerDepthSortedProp(img, row)
     img.setInteractive()
     img.on('pointerdown', () => {
       this.suppressClickMove = true
@@ -296,6 +299,18 @@ export abstract class GridScene extends Phaser.Scene {
     return this.npcs.find((n) => n.row === this.playerRow + dr && n.col === this.playerCol + dc)
   }
 
+  // 花占いのポストのように「置物の手前で向き合う」接し方をする設置物向けの判定。
+  // 現在立っているマスがkindと一致すればそこで反応し、一致しなければ向いている先の
+  // マスも見る（NPCと同じ隣接+正対の考え方）。2026-07-26修正: 通行不可の置物1マス分の
+  // 反対側から近づくと、調べマスへ立つ前に置物の手前で立ち止まって正対してしまい、
+  // 現在マスだけを見る判定では反応しなかった不具合の対処
+  protected isFacingOrOnKind(kind: string): boolean {
+    const matches = (spec: CellSpec | undefined) => (spec?.data as { kind?: string } | undefined)?.kind === kind
+    if (matches(this.specAt(this.playerRow, this.playerCol))) return true
+    const { dr, dc } = this.facingDelta()
+    return matches(this.specAt(this.playerRow + dr, this.playerCol + dc))
+  }
+
   // NPCクリック時の話しかけ判定。離れているときと、隣接していても向きが違うときで案内を分ける
   private tryTalkTo(chara: string) {
     if (isDialogueOpen()) return
@@ -316,6 +331,7 @@ export abstract class GridScene extends Phaser.Scene {
 
   private startTalk(npc: { img: Phaser.GameObjects.Image; chara: string; reacting: boolean }) {
     if (isDialogueOpen() || npc.reacting) return
+    playSfx('confirm')
 
     // 薬依頼（§9-8）: 薬を1個でも調合済みで未達成の依頼があれば選択肢を出す。
     // 以前は症状ヒントの依頼会話に固定していたが、達成するまで毎回同じ話しか聞けず
@@ -403,31 +419,44 @@ export abstract class GridScene extends Phaser.Scene {
     // （2026-07-25本人指示。秋だけ12件で難易度が跳ね上がっていたため門の条件を3ステージとも統一）。
     // 依頼が一発完結制になったため、渡し終えた状態はそのまま維持される＝判定は一度trueになれば以後もtrue
     if (allStage1QuestsEverDelivered()) unlockIzunaStage1Dialogue()
+    // 季節の門の解放判定（2026-07-27改定・本人指示）: 解放の瞬間に「門が開き次の里が見える」
+    // カットインを出す（従来は門を通過するたびに出ていて、毎回「ひらけた！」と言うのが不自然だった）。
+    // カットイン＋門のSEはお礼の会話が閉じた直後に流し、場所の案内メッセージも同時に出す
+    let unlockedSeason: 'summer' | 'autumn' | 'winter' | null = null
+    let unlockMessage = ''
     if (summerGateConditionMet() && unlockSummer()) {
-      showMessage('遠くで、重い門の開く音がした……。里の右上にある「季節の門」が開いたようだ！')
+      unlockedSeason = 'summer'
+      unlockMessage = '遠くで、重い門の開く音がした……。里の右上にある「季節の門」が開いたようだ！'
     }
     // ステージ2〜4分のイズナの深い会話（2026-07-24追加）。仕組みはステージ1と同じ
     if (allStage2QuestsEverDelivered()) unlockIzunaStage2Dialogue()
-    // 秋・冬の門も夏の門と同じく「条件を満たした瞬間」に解放し、演出メッセージを出す
-    // （2026-07-25本人指示で秋も統一。各シーンのonEnter側にある解放判定は、この処理より前に
-    // 作られた旧セーブの救済として残してある）
     if (autumnGateConditionMet() && unlockAutumn()) {
-      showMessage('遠くで、重い門の開く音がした……。夏の里の右上にある「秋への門」が開いたようだ！')
+      unlockedSeason = 'autumn'
+      unlockMessage = '遠くで、重い門の開く音がした……。夏の里の右上にある「秋への門」が開いたようだ！'
     }
     if (allStage3QuestsEverDelivered()) unlockIzunaStage3Dialogue()
     if (winterGateConditionMet() && unlockWinter()) {
-      showMessage('遠くで、重い門の開く音がした……。秋の里の右上にある「冬への門」が開いたようだ！')
+      unlockedSeason = 'winter'
+      unlockMessage = '遠くで、重い門の開く音がした……。秋の里の右上にある「冬への門」が開いたようだ！'
     }
     if (allStage4QuestsEverDelivered()) unlockIzunaStage4Dialogue()
     // クロストーク解放（2026-07-24追加）: このキャラの季節タグぶんの依頼が揃ったら段階的に解放。
-    // お礼の会話が閉じた直後に、解放されたクロストーク本文を続けて1回だけ再生する
+    // お礼の会話が閉じた直後に、門のカットイン → クロストーク本文の順で続ける
     const newCrossTalkTier = checkCrossTalkUnlock(quest.chara, quest.unlockSeason)
     updateHud()
     showToast(`${quest.name}に${recipe.name}を渡した`, recipe.icon)
     openDialogue(quest.thanksLines.map(line), () => {
-      if (newCrossTalkTier === null) return
-      const crossTalk = crossTalkLinesFor(quest.chara, newCrossTalkTier)
-      if (crossTalk) openDialogue(crossTalk)
+      const proceedCrossTalk = () => {
+        if (newCrossTalkTier === null) return
+        const crossTalk = crossTalkLinesFor(quest.chara, newCrossTalkTier)
+        if (crossTalk) openDialogue(crossTalk)
+      }
+      if (unlockedSeason) {
+        showMessage(unlockMessage)
+        showSeasonGateCutin(unlockedSeason, proceedCrossTalk)
+      } else {
+        proceedCrossTalk()
+      }
     })
   }
 
@@ -444,12 +473,11 @@ export abstract class GridScene extends Phaser.Scene {
     img.setScale(scale)
   }
 
-  // ── 立ちオブジェクトの前後関係（2026-07-25新設・本人指示） ──────────────────
-  // 花占いポストのように背の高い置物は、トリカとの上下関係で描画順を入れ替える。
-  // トリカが置物より奥（上の行）にいるときは置物を手前に描いてトリカを隠し、
-  // 手前（下の行）に回り込んだときはトリカを置物の上に出す。
-  // depth固定（従来は12）だと、調べマスが置物の下にある冬の里のような配置で、
-  // 手前に立っているのにトリカが置物へ潜り込んで見えてしまう
+  // ── 立ちオブジェクトの前後関係（2026-07-25新設、2026-07-26にNPCへも適用・本人指示） ──
+  // 花占いポストのように背の高い置物・NPCは、トリカとの上下関係で描画順を入れ替える。
+  // トリカが対象より奥（上の行）にいるときは対象を手前に描いてトリカを隠し、
+  // 手前（下の行）に回り込んだときはトリカを対象の上に出す。
+  // depth固定だと、トリカが対象の奥（背後）に回り込んでも常にトリカが手前に描かれてしまう
   private depthSortedProps: { img: Phaser.GameObjects.Image; row: number }[] = []
 
   protected registerDepthSortedProp(img: Phaser.GameObjects.Image, row: number) {

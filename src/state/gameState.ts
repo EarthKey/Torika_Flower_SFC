@@ -1,5 +1,7 @@
 // プレイヤーの所持品・進行状態。まだ絵がない段階なので純粋なロジックだけを持つ。
 
+import { playSfx } from './sfx'
+
 // 4ステージ共通の季節タグ。GridScene.sceneSeason・dialogueData.pickTalk・
 // 依頼の季節タグ(unlockSeason)などで共通利用する（2026-07-24〜）
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter'
@@ -8,6 +10,12 @@ export type Season = 'spring' | 'summer' | 'autumn' | 'winter'
 // 調合・受け渡しで消費しても99に戻る。
 // **2026-07-26に本番設定（false）へ戻した**。検証で一時的に立てたら必ず戻すこと
 const TEST_UNLIMITED_KUSURI = false
+
+// テストプレイ用の一時措置（2026-07-27）: trueにすると生薬メダルの初期所持数だけ99にする。
+// TEST_UNLIMITED_KUSURIと違い、消費すればちゃんと減り、完成薬(kusuriCounts)も
+// 調合で増える・渡して減るという通常の挙動のまま。渡す前後でセリフがどう変わるかを
+// 確認したいときに使う。確認が終わったら必ずfalseに戻すこと
+const TEST_START_WITH_MEDALS = true
 
 // ステージ1（春・甲賀）3種＋ステージ2（夏・風魔）3種＋ステージ3（秋・雑賀）3種＋ステージ4（冬・伊賀）3種。
 // ステージが増えるたびにここへ追加する。乾姜(kankyou)は生姜と同一植物のため種・成長段階の
@@ -92,18 +100,18 @@ export const gameState = {
     byakujutsu: 0,
   } as Record<SeedKind, number>,
   medals: {
-    kanzou: TEST_UNLIMITED_KUSURI ? 99 : 0,
-    syoubaku: TEST_UNLIMITED_KUSURI ? 99 : 0,
-    taisou: TEST_UNLIMITED_KUSURI ? 99 : 0,
-    syakuyaku: TEST_UNLIMITED_KUSURI ? 99 : 0,
-    keihi: TEST_UNLIMITED_KUSURI ? 99 : 0,
-    syoukyou: TEST_UNLIMITED_KUSURI ? 99 : 0,
-    mao: TEST_UNLIMITED_KUSURI ? 99 : 0,
-    kyounin: TEST_UNLIMITED_KUSURI ? 99 : 0,
-    kakkon: TEST_UNLIMITED_KUSURI ? 99 : 0,
-    kankyou: TEST_UNLIMITED_KUSURI ? 99 : 0,
-    ninjin: TEST_UNLIMITED_KUSURI ? 99 : 0,
-    byakujutsu: TEST_UNLIMITED_KUSURI ? 99 : 0,
+    kanzou: TEST_UNLIMITED_KUSURI || TEST_START_WITH_MEDALS ? 99 : 0,
+    syoubaku: TEST_UNLIMITED_KUSURI || TEST_START_WITH_MEDALS ? 99 : 0,
+    taisou: TEST_UNLIMITED_KUSURI || TEST_START_WITH_MEDALS ? 99 : 0,
+    syakuyaku: TEST_UNLIMITED_KUSURI || TEST_START_WITH_MEDALS ? 99 : 0,
+    keihi: TEST_UNLIMITED_KUSURI || TEST_START_WITH_MEDALS ? 99 : 0,
+    syoukyou: TEST_UNLIMITED_KUSURI || TEST_START_WITH_MEDALS ? 99 : 0,
+    mao: TEST_UNLIMITED_KUSURI || TEST_START_WITH_MEDALS ? 99 : 0,
+    kyounin: TEST_UNLIMITED_KUSURI || TEST_START_WITH_MEDALS ? 99 : 0,
+    kakkon: TEST_UNLIMITED_KUSURI || TEST_START_WITH_MEDALS ? 99 : 0,
+    kankyou: TEST_UNLIMITED_KUSURI || TEST_START_WITH_MEDALS ? 99 : 0,
+    ninjin: TEST_UNLIMITED_KUSURI || TEST_START_WITH_MEDALS ? 99 : 0,
+    byakujutsu: TEST_UNLIMITED_KUSURI || TEST_START_WITH_MEDALS ? 99 : 0,
   } as Record<SeedKind, number>,
   // 完成薬の所持数（処方IDごと・2026-07-19処方別化）。キーはRECIPESのid
   kusuriCounts: {} as Record<string, number>,
@@ -118,6 +126,10 @@ export const gameState = {
   // 特殊会話（里の外＝現実側の話をするメタ枠。2026-07-26〜）を、そのキャラぶん一度でも読んだか。
   // 裏話と同じ「全処方コンプ」で解放され、裏話を読み終えたキャラから順に再生される
   specialSeen: {} as Record<string, boolean>,
+  // 変化（人間形態）の話（柴・猫又。2026-07-27〜）を一度でも読んだか。
+  // そのキャラに薬を1件でも渡すと解放され、初回は世間話より優先して必ず流す（裏話と同じ方式）。
+  // 「薬をくれた恩人にだけ、本当の姿を見せる」という信頼の演出のため、初対面では出さない
+  hengeSeen: {} as Record<string, boolean>,
 }
 
 export function kusuriCountOf(recipeId: string): number {
@@ -300,9 +312,11 @@ export function giveKusuri(recipeId: string): boolean {
 // これにより、別のマップ（種の聖域・工房）にいる間も畑は育ち続ける。
 // 将来LocalStorageセーブに移行するときも plantedAtMs を保存するだけで済む。
 
-// 本番バランス（2026-07-26本人決定）。段階1→4に3段階ぶんかかるので、
-// 4時間×3＝**半日（12時間）で収穫可能**になる。「朝植えて夕方収穫」の1日2周サイクルが軸
-export const GROWTH_MS_PER_STAGE = 4 * 60 * 60 * 1000
+// 本番バランス（2026-07-27改訂・本人指示で線形カーブへ再設計）。段階1→4に3段階ぶんかかるので、
+// 2時間×3＝**6時間で収穫可能**になる（収穫カーブの最初の刻みと一致させる。§下記参照）
+// TEST_FAST_GROWTH: 実機プレイ確認用の一時短縮。確認が終わったら必ず false に戻すこと
+const TEST_FAST_GROWTH = true
+export const GROWTH_MS_PER_STAGE = TEST_FAST_GROWTH ? 5 * 1000 : 2 * 60 * 60 * 1000
 
 export interface PlotState {
   crop: SeedKind
@@ -339,26 +353,24 @@ export function plantOn(plot: PlotState): boolean {
   if (gameState.seeds[plot.crop] <= 0) return false
   gameState.seeds[plot.crop]--
   plot.plantedAtMs = Date.now()
+  playSfx('plant')
   persist()
   return true
 }
 
-// ── 収穫カーブ（仕様書§9-10。2026-07-26に本人指示で2段階へ再設計） ──────────
-// DAY_MS = 段階1→4に要する時間 = 半日（12時間）。刻みは実時間で次の2段階だけ:
-//   ・半日（12時間）で **1個**  … 朝植えて夕方に取りにくる周回
-//   ・丸1日（24時間）で **2〜4個ランダム** … 1日待って、花占いと同じタイミングで薬まで仕上げる周回
-// 旧カーブ（1日=1 / 2日=1〜3 / 3日=2〜4）の中間段は廃止した。
-// 旧設計の「待っても損しない（時間あたり一定）」からは意図的に外れており、
-// **1日待ったほうが時間あたりの取れ高が良い**（12h=1個/半日 に対し 24h=平均3個）。
-// 1日1回の花占いと歩調を合わせて、日課として戻ってくる動機にするため（本人判断）
+// ── 収穫カーブ（仕様書§9-10。2026-07-27に本人指示で線形カーブへ再設計） ──────────
+// HARVEST_STEP_MS = 段階1→4に要する時間 = 6時間。ランダム幅は廃止し、6時間刻みの線形で
+// 待った分だけ素直に増える設計にした:
+//   6時間=1個 / 12時間=2個 / 18時間=3個 / 24時間=4個で頭打ち
+// 旧カーブ（12時間=1個固定 / 24時間以上=2〜4個ランダム）は「待っても増えない/一気に増える」の
+// 段差と乱数が分かりにくいという理由で廃止（本人判断）
 
-export const DAY_MS = GROWTH_MS_PER_STAGE * 3 // = 12時間
+export const HARVEST_STEP_MS = GROWTH_MS_PER_STAGE * 3 // = 6時間
 
 export function harvestYieldOf(plot: PlotState, nowMs = Date.now()): number {
   if (plot.plantedAtMs === null) return 0
-  const halfDays = Math.floor((nowMs - plot.plantedAtMs) / DAY_MS)
-  if (halfDays >= 2) return 2 + Math.floor(Math.random() * 3) // 24時間以上=2〜4個（打ち止め）
-  return 1 // 12時間=1個
+  const steps = Math.floor((nowMs - plot.plantedAtMs) / HARVEST_STEP_MS)
+  return Math.min(4, steps) // 6h=1 / 12h=2 / 18h=3 / 24h=4で頭打ち
 }
 
 // 収穫。育ちきっていなければ0、収穫できたら獲得したメダル数を返す
@@ -367,6 +379,7 @@ export function harvestFrom(plot: PlotState): number {
   const gained = harvestYieldOf(plot)
   plot.plantedAtMs = null
   gameState.medals[plot.crop] += gained
+  playSfx('get')
   persist()
   return gained
 }
@@ -378,7 +391,6 @@ export function addSeed(kind: SeedKind) {
 
 // ── 種の採取クールダウン ──────────────────────
 // 採取スポットは1回採ると**6時間**後に次の種が出る（2026-07-26本人決定。旧60分から延長）。
-// 畑が半日で1周なので、種は1周につき2回ぶん溜まる勘定になる。
 // 採取時刻を保存し、経過実時間で判定するので、ブラウザを閉じていても回復が進む。
 
 export const SEED_COOLDOWN_MS = 6 * 60 * 60 * 1000
@@ -410,6 +422,7 @@ export function collectSeed(kind: SeedKind): { ok: boolean; remainMs: number } {
   if (remain > 0) return { ok: false, remainMs: remain }
   seedSpotCollectedAt[kind] = Date.now()
   gameState.seeds[kind]++
+  playSfx('get')
   persist()
   return { ok: true, remainMs: 0 }
 }
@@ -574,6 +587,36 @@ export function allRecipesEverCrafted(): boolean {
   return RECIPES.every((r) => gameState.kusuriEverObtained[r.id])
 }
 
+// ── レシピの季節判定（2026-07-27・薬依頼の発動タイミング制御用） ──────────────────
+// レシピがどのステージ相当かは、使う生薬のうち「最も遅い季節」で決まる
+// （例: 桂枝湯は桂皮・芍薬・生姜が夏の生薬なので夏レシピ。甘草・大棗が混ざっていても夏）。
+// 明示のstageフィールドを持たせず材料から導出するので、レシピ追加時のタグ付け漏れが起きない
+const SEASON_ORDER: Season[] = ['spring', 'summer', 'autumn', 'winter']
+
+export function recipeSeasonOf(recipe: Recipe): Season {
+  let idx = 0
+  for (const kind of Object.keys(recipe.cost) as SeedKind[]) {
+    idx = Math.max(idx, SEASON_ORDER.indexOf(KIND_STAGE[kind]))
+  }
+  return SEASON_ORDER[idx]
+}
+
+// その季節のレシピをどれか1種類でも調合したことがあるか。
+// 薬依頼の発動ゲート（2026-07-27本人指示: 新ステージの依頼は、そのステージの薬を
+// 1つ作ってから話し始める。ステージに入った瞬間に全員が症状を語り出す唐突さの解消）
+export function anySeasonRecipeCrafted(season: Season): boolean {
+  return RECIPES.some((r) => recipeSeasonOf(r) === season && gameState.kusuriEverObtained[r.id])
+}
+
+// この処方をUI（HUDの薬欄・工房のレシピ本・調合の選択肢）に出してよいか（2026-07-27本人指示）。
+// 調合済みなら常に表示。未調合でも、材料の季節がすべて到達済みなら表示（未知の「?」枠として）。
+// 未到達の季節の生薬を使う処方は、名前も材料もネタバレになるためUIごと隠す
+export function recipeVisibleInUi(recipe: Recipe): boolean {
+  if (gameState.kusuriEverObtained[recipe.id]) return true
+  const season = recipeSeasonOf(recipe)
+  return season === 'spring' || stageUnlocks[season]
+}
+
 // 「今の調合で全処方コンプに到達した」ことを一度だけHUDへ伝えるための受け渡し用フラグ。
 // gameStateからhud.tsを直接呼ぶと循環参照になるため、hud側のupdateHud()（調合後に必ず呼ばれる）が
 // takeUrabanashiUnlockNotice()で取りに来る方式にしている。4つの工房シーンを個別に触らずに済む
@@ -596,6 +639,13 @@ export function markUrabanashiSeen(chara: string) {
 export function markSpecialSeen(chara: string) {
   if (gameState.specialSeen[chara]) return
   gameState.specialSeen[chara] = true
+  persist()
+}
+
+// 変化（人間形態）の話を既読にする（柴・猫又。2026-07-27〜）
+export function markHengeSeen(chara: string) {
+  if (gameState.hengeSeen[chara]) return
+  gameState.hengeSeen[chara] = true
   persist()
 }
 
@@ -641,6 +691,7 @@ interface SaveData {
   npcCrossTalk?: Record<string, number> // クロストーク解放数（2026-07-24追加。追加前のセーブには無い）
   urabanashiSeen?: Record<string, boolean> // 裏話の既読（2026-07-26追加。追加前のセーブには無い＝全員未読扱い）
   specialSeen?: Record<string, boolean> // 特殊会話の既読（2026-07-26追加。追加前のセーブには無い＝全員未読扱い）
+  hengeSeen?: Record<string, boolean> // 変化（人間形態）の話の既読（2026-07-27追加。追加前のセーブには無い＝全員未読扱い）
   seedSpotCollectedAt?: Record<SeedKind, number | null> // 採取クールダウン追加前のセーブには無い
   stageUnlocks?: { summer?: boolean; autumn?: boolean; winter?: boolean } // 季節の門の解放状態（2026-07-19追加。追加前のセーブには無い）
   lastPlayedMs?: number // スロット選択画面の要約表示用
@@ -661,6 +712,7 @@ function persist() {
       npcCrossTalk,
       urabanashiSeen: gameState.urabanashiSeen,
       specialSeen: gameState.specialSeen,
+      hengeSeen: gameState.hengeSeen,
       seedSpotCollectedAt,
       stageUnlocks,
       lastPlayedMs: Date.now(),
@@ -675,7 +727,7 @@ function persist() {
 function resetState() {
   for (const k of Object.keys(gameState.seeds) as SeedKind[]) {
     gameState.seeds[k] = 0
-    gameState.medals[k] = TEST_UNLIMITED_KUSURI ? 99 : 0
+    gameState.medals[k] = TEST_UNLIMITED_KUSURI || TEST_START_WITH_MEDALS ? 99 : 0
     seedSpotCollectedAt[k] = null
   }
   gameState.kusuriCounts = {}
@@ -683,6 +735,7 @@ function resetState() {
   gameState.totalKusuriCrafted = 0
   gameState.urabanashiSeen = {}
   gameState.specialSeen = {}
+  gameState.hengeSeen = {}
   for (const key of Object.keys(questDeliveredAt)) delete questDeliveredAt[key]
   for (const key of Object.keys(plots)) plots[key].plantedAtMs = null
   for (const key of Object.keys(npcStates)) {
@@ -701,7 +754,7 @@ function applySaveData(data: SaveData) {
   Object.assign(gameState.seeds, data.seeds)
   Object.assign(gameState.medals, data.medals)
   // テスト中は旧セーブの少ない所持数を読み込んでも99へ揃える
-  if (TEST_UNLIMITED_KUSURI) {
+  if (TEST_UNLIMITED_KUSURI || TEST_START_WITH_MEDALS) {
     for (const k of Object.keys(gameState.medals) as SeedKind[]) gameState.medals[k] = 99
   }
   // 旧セーブの移行: 単一カウント（kusuri）・最旧のboolean → 甘麦大棗湯の所持数として引き継ぐ
@@ -722,6 +775,7 @@ function applySaveData(data: SaveData) {
   // 裏話・特殊会話の既読は記録がなければ空のまま（＝全員未読。解放済みなら優先再生される）
   if (data.urabanashiSeen) gameState.urabanashiSeen = { ...data.urabanashiSeen }
   if (data.specialSeen) gameState.specialSeen = { ...data.specialSeen }
+  if (data.hengeSeen) gameState.hengeSeen = { ...data.hengeSeen }
   if (data.questDeliveredAt) Object.assign(questDeliveredAt, data.questDeliveredAt)
   for (const key of Object.keys(plots)) {
     if (data.plots?.[key]) plots[key].plantedAtMs = data.plots[key].plantedAtMs
