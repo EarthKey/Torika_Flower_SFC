@@ -4,7 +4,8 @@
 // 音量は options.masterVolume × options.seVolume を再生のたびに読む（事前のノード共有は不要）。
 //
 // 種類: confirm(決定・話しかけ) / get(種・メダル・薬の獲得) / plant(種植え) /
-//       compound(調合成功ファンファーレ) / gate(季節の門の解放) / fortune(花占い)
+//       compound(調合成功ファンファーレ) / gate(季節の門の解放) / fortune(花占い) /
+//       finale(全依頼完遂のフィナーレ・一度きり)
 
 import { options } from './options'
 
@@ -79,7 +80,7 @@ function noise(
   src.start(t0)
 }
 
-export type SfxKind = 'confirm' | 'get' | 'plant' | 'compound' | 'gate' | 'fortune' | 'volumeCheck'
+export type SfxKind = 'confirm' | 'get' | 'plant' | 'compound' | 'gate' | 'fortune' | 'finale' | 'volumeCheck'
 
 export function playSfx(kind: SfxKind) {
   const vol = volume()
@@ -177,6 +178,28 @@ export function playSfx(kind: SfxKind) {
       const SPARKLE = [2637, 3136, 2093, 3520, 2794]
       SPARKLE.forEach((freq, i) => {
         tone(ac, master, 'sine', freq, freq, 1.95 + i * 0.09, 0.5, 0.05)
+      })
+      break
+    }
+    case 'finale': {
+      // 全依頼完遂のフィナーレ（2026-08-01追加・セーブごとに一度しか鳴らない祝いの音）。
+      // 調合ファンファーレを一段ゆったり鳴らしたあと、門の解放と同じ
+      // 「花が咲き開く」ペンタトニックの駆け上がり＋花びらのキラキラを続けて重ねる
+      tone(ac, master, 'square', 523, 523, 0, 0.1, 0.12)
+      tone(ac, master, 'square', 659, 659, 0.1, 0.1, 0.12)
+      tone(ac, master, 'square', 784, 784, 0.2, 0.1, 0.12)
+      tone(ac, master, 'square', 1047, 1047, 0.3, 0.35, 0.13)
+      tone(ac, master, 'triangle', 523, 523, 0.3, 0.35, 0.1)
+      tone(ac, master, 'triangle', 784, 784, 0.3, 0.35, 0.08)
+      const FINALE_BLOOM = [523, 587, 659, 784, 880, 1047, 1175, 1319, 1568, 1760] // Cペンタ2オクターブ
+      FINALE_BLOOM.forEach((freq, i) => {
+        const start = 0.7 + i * 0.055
+        tone(ac, master, 'sine', freq, freq, start, 0.45, 0.11)
+        tone(ac, master, 'triangle', freq * 2, freq * 2, start, 0.3, 0.04)
+      })
+      const FINALE_SPARKLE = [2637, 3136, 2093, 3520, 2794]
+      FINALE_SPARKLE.forEach((freq, i) => {
+        tone(ac, master, 'sine', freq, freq, 1.35 + i * 0.09, 0.5, 0.05)
       })
       break
     }

@@ -14,6 +14,7 @@ export interface DialogueLine {
   face: number
   text: string // 「**」で囲んだ部分はemScale倍で拡大表示される（花占いの花名・運勢結果など）
   emScale?: number // **囲み部分の文字拡大率（省略時2倍）。花占いの結果は3倍で使う
+  color?: string // 本文の文字色（省略時は通常の#fff2f0）。フィナーレの作者メッセージを金色にする用（2026-08-01〜）
   onShow?: () => void // この行が表示された瞬間に呼ばれる（チュートリアルの案内矢印などの演出フック）
 }
 
@@ -170,6 +171,7 @@ function showLine() {
   line.onShow?.()
   portraitEl.src = `assets/chara/${line.speaker}_face_${line.face}.png`
   nameEl.textContent = line.name
+  textEl.style.color = line.color ?? '#fff2f0' // 行ごとに毎回設定する（色付き行の次の行で戻し忘れないため）
 
   // タイプライター表示。1文字ずつ進め、完了したら▼を出す（**囲みの拡大部分も1文字ずつ出す）
   const segments = parseSegments(line.text)

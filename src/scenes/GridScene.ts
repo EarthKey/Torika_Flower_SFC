@@ -1,11 +1,14 @@
 import Phaser from 'phaser'
 import { isDialogueOpen, advanceDialogue, openDialogue } from '../ui/dialogue'
-import { pickTalk, crossTalkLinesFor } from '../state/dialogueData'
+import { pickTalk, crossTalkLinesFor, finaleLines } from '../state/dialogueData'
 import {
+  gameState,
   recordTalk,
   recordGift,
   giveKusuri,
   markQuestDelivered,
+  markFinaleCutinSeen,
+  markFinaleSeen,
   unlockIzunaStage1Dialogue,
   unlockIzunaStage2Dialogue,
   unlockIzunaStage3Dialogue,
@@ -18,6 +21,7 @@ import {
 } from '../state/gameState'
 import {
   activeQuestFor,
+  allQuestsEverDelivered,
   allStage1QuestsEverDelivered,
   allStage2QuestsEverDelivered,
   allStage3QuestsEverDelivered,
@@ -31,7 +35,7 @@ import {
   GIFT_TRUST_BONUS,
   type Quest,
 } from '../state/questData'
-import { showMessage, showToast, showGiftPicker, showQuestChoice, showSeasonGateCutin, updateHud, isCompoundMovieOpen, isOverlayOpen } from '../ui/hud'
+import { showMessage, showToast, showGiftPicker, showQuestChoice, showSeasonGateCutin, showFinaleCutin, showFinaleIllust, updateHud, isCompoundMovieOpen, isOverlayOpen } from '../ui/hud'
 import { zoomState } from '../state/options'
 import { playSfx } from '../state/sfx'
 
@@ -156,6 +160,30 @@ export abstract class GridScene extends Phaser.Scene {
     this.setZoomMode(zoomState.on, false)
 
     this.onReady()
+
+    // 旧全クリセーブの救済（2026-08-01）: フィナーレ実装より前に全依頼を渡し終えていたセーブでは
+    // 「42件目を渡した瞬間」が二度と来ないため、里に入った瞬間に一度だけカットインを流す。
+    // イントロ等の会話・オーバーレイが開いていたら見送る（finaleCutinSeenは付かないままなので、
+    // 次のシーン入場時に改めて発火する）。フィナーレ会話はカットインとは別に、イズナへの
+    // 話しかけで発生する（startTalk参照）
+    if (allQuestsEverDelivered() && !gameState.finaleCutinSeen) {
+      this.time.delayedCall(700, () => {
+        if (isDialogueOpen() || isOverlayOpen() || isCompoundMovieOpen()) return
+        this.playFinaleCutin()
+      })
+    }
+  }
+
+  // フィナーレ第1段: ファンファーレ＋ガッツポーズカットイン（3:2・未配置ならスキップ）＋
+  // 「イズナに報告しに行こう」の案内。42件目納品の直後（giveTo）と、旧全クリセーブの
+  // シーン入場時（create）の両方から呼ばれる。第2段（会話＋一枚絵）はイズナへの話しかけで発生
+  private playFinaleCutin() {
+    if (gameState.finaleCutinSeen) return
+    markFinaleCutinSeen()
+    playSfx('finale')
+    showFinaleCutin(() => {
+      showMessage('すべての依頼を渡し終えた！　イズナに報告しに行こう。')
+    })
   }
 
   // ズームモードの適用（animate=falseなら即時切り替え。シーン開始時用）
@@ -333,6 +361,18 @@ export abstract class GridScene extends Phaser.Scene {
     if (isDialogueOpen() || npc.reacting) return
     playSfx('confirm')
 
+    // フィナーレ第2段（2026-08-01本人指示）: 全依頼を渡し終えたあと、イズナに話しかけた
+    // 瞬間に一度だけ、フィナーレ会話（酉花の報告→イズナが預かった作者メッセージ）→
+    // 感謝の一枚絵を流す。以後は通常の世間話に戻る
+    if (npc.chara === 'izuna' && allQuestsEverDelivered() && !gameState.finaleSeen) {
+      this.playGreet(npc)
+      markFinaleSeen()
+      const finale = finaleLines()
+      if (finale) openDialogue(finale, () => showFinaleIllust())
+      else showFinaleIllust()
+      return
+    }
+
     // 薬依頼（§9-8）: 薬を1個でも調合済みで未達成の依頼があれば選択肢を出す。
     // 以前は症状ヒントの依頼会話に固定していたが、達成するまで毎回同じ話しか聞けず
     // 世間話に分岐できなかったため、2026-07-22本人指示で選択制に変更した
@@ -443,13 +483,26 @@ export abstract class GridScene extends Phaser.Scene {
     // クロストーク解放（2026-07-24追加）: このキャラの季節タグぶんの依頼が揃ったら段階的に解放。
     // お礼の会話が閉じた直後に、門のカットイン → クロストーク本文の順で続ける
     const newCrossTalkTier = checkCrossTalkUnlock(quest.chara, quest.unlockSeason)
+    // フィナーレ判定（2026-08-01追加・同日改定）: この1件で全42依頼を渡し終えたら、お礼の会話
+    // （＋クロストーク）が閉じた直後に、ファンファーレ＋ガッツポーズカットインを一度だけ流す。
+    // フィナーレ会話と一枚絵はここでは流さず、イズナへ話しかけたときに発生する（本人指示で分離）
+    const finaleReady = allQuestsEverDelivered() && !gameState.finaleCutinSeen
     updateHud()
     showToast(`${quest.name}に${recipe.name}を渡した`, recipe.icon)
     openDialogue(quest.thanksLines.map(line), () => {
+      const proceedFinale = () => {
+        if (!finaleReady) return
+        this.playFinaleCutin()
+      }
       const proceedCrossTalk = () => {
-        if (newCrossTalkTier === null) return
-        const crossTalk = crossTalkLinesFor(quest.chara, newCrossTalkTier)
-        if (crossTalk) openDialogue(crossTalk)
+        if (newCrossTalkTier !== null) {
+          const crossTalk = crossTalkLinesFor(quest.chara, newCrossTalkTier)
+          if (crossTalk) {
+            openDialogue(crossTalk, proceedFinale)
+            return
+          }
+        }
+        proceedFinale()
       }
       if (unlockedSeason) {
         showMessage(unlockMessage)

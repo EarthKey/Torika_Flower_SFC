@@ -801,6 +801,118 @@ export function showSeasonGateCutin(season: 'summer' | 'autumn' | 'winter', onEn
   autoTimer = window.setTimeout(finish, 3200)
 }
 
+// フィナーレ冒頭のガッツポーズカットイン（2026-08-01追加）。全依頼完遂のファンファーレと同時に、
+// 青空バックで両手を突き上げるトリカの3:2一枚絵（assets/effects/finale_torika.webp）を挟む。
+// 門カットインと同じ挙動（クリック/キーでスキップ・一定時間で自動終了・画像未配置ならスキップ）
+export function showFinaleCutin(onEnd: () => void) {
+  if (!gateCutinEl) {
+    gateCutinEl = document.createElement('div')
+    gateCutinEl.id = 'gate-cutin'
+    gateCutinEl.style.cssText = `
+      position: fixed; inset: 0; display: none;
+      align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.85); z-index: 40; cursor: pointer;
+      opacity: 0; transition: opacity 0.45s ease;
+    `
+    document.body.appendChild(gateCutinEl)
+  }
+  const el = gateCutinEl
+
+  gateCutinOpen = true
+  let finished = false
+  let autoTimer: number | undefined
+  const onKeyDown = (e: KeyboardEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
+    finish()
+  }
+  const finish = () => {
+    if (finished) return
+    finished = true
+    gateCutinOpen = false
+    window.clearTimeout(autoTimer)
+    window.removeEventListener('keydown', onKeyDown, true)
+    el.style.opacity = '0'
+    window.setTimeout(() => {
+      el.style.display = 'none'
+      el.innerHTML = ''
+      onEnd()
+    }, 450)
+  }
+
+  el.innerHTML = `
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 14px;">
+      <img src="assets/effects/finale_torika.webp" style="
+        width: min(720px, 88vw); aspect-ratio: 3/2; object-fit: cover;
+        border: 4px solid #c9a24a; border-radius: 6px; background: #000;
+      ">
+      <div style="font-family: monospace; font-size: 26px; font-weight: bold; color: #ffe9a8;
+        text-shadow: 0 2px 6px rgba(0,0,0,0.8);">すべての依頼を達成した！</div>
+    </div>
+  `
+  const img = el.querySelector('img')!
+  img.addEventListener('error', () => finish())
+  el.addEventListener('click', finish, { once: true })
+  window.addEventListener('keydown', onKeyDown, true)
+  el.style.display = 'flex'
+  requestAnimationFrame(() => { el.style.opacity = '1' })
+  autoTimer = window.setTimeout(finish, 3600)
+}
+
+// フィナーレ一枚絵（2026-08-01追加）。全依頼完遂のフィナーレ会話が閉じた直後に、
+// 作者からの感謝イラスト（3:4縦・assets/effects/finale_last.webp）を全画面で表示する。
+// 門カットインと同じオーバーレイ要素・入力ロックを使い回すが、こちらは自動では閉じない
+// （一度しか見られない一枚なので、プレイヤーが好きなだけ眺めてクリック/キーで閉じる）。
+// 画像未配置（読み込み失敗）のときは何も出さずに終了する
+export function showFinaleIllust(onEnd?: () => void) {
+  if (!gateCutinEl) {
+    gateCutinEl = document.createElement('div')
+    gateCutinEl.id = 'gate-cutin'
+    gateCutinEl.style.cssText = `
+      position: fixed; inset: 0; display: none;
+      align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.85); z-index: 40; cursor: pointer;
+      opacity: 0; transition: opacity 0.45s ease;
+    `
+    document.body.appendChild(gateCutinEl)
+  }
+  const el = gateCutinEl
+
+  gateCutinOpen = true
+  let finished = false
+  const onKeyDown = (e: KeyboardEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
+    finish()
+  }
+  const finish = () => {
+    if (finished) return
+    finished = true
+    gateCutinOpen = false
+    window.removeEventListener('keydown', onKeyDown, true)
+    el.style.opacity = '0'
+    window.setTimeout(() => {
+      el.style.display = 'none'
+      el.innerHTML = ''
+      onEnd?.()
+    }, 450)
+  }
+
+  el.innerHTML = `
+    <img src="assets/effects/finale_last.webp" style="
+      height: min(88vh, 1100px); max-width: 92vw; object-fit: contain;
+      border: 4px solid #c9a24a; border-radius: 6px; background: #000;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.7);
+    ">
+  `
+  const img = el.querySelector('img')!
+  img.addEventListener('error', () => finish())
+  el.addEventListener('click', finish, { once: true })
+  window.addEventListener('keydown', onKeyDown, true)
+  el.style.display = 'flex'
+  requestAnimationFrame(() => { el.style.opacity = '1' })
+}
+
 // イントロで「遊び方」ボタンを指す上向き矢印の表示切り替え
 export function setHowtoGuideArrow(show: boolean) {
   if (howtoGuideArrowEl) howtoGuideArrowEl.style.display = show ? 'block' : 'none'

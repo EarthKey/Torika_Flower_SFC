@@ -130,6 +130,12 @@ export const gameState = {
   // そのキャラに薬を1件でも渡すと解放され、初回は世間話より優先して必ず流す（裏話と同じ方式）。
   // 「薬をくれた恩人にだけ、本当の姿を見せる」という信頼の演出のため、初対面では出さない
   hengeSeen: {} as Record<string, boolean>,
+  // フィナーレのガッツポーズカットイン（2026-08-01〜）を見たか。
+  // 42件目（最後）の薬を渡した直後に一度だけ出す（ファンファーレ＋「イズナに報告しに行こう」）
+  finaleCutinSeen: false,
+  // フィナーレ会話（酉花の報告→イズナが預かった作者メッセージ→感謝の一枚絵。2026-08-01〜）を見たか。
+  // カットインとは別トリガーで、全依頼完遂後にイズナへ話しかけた瞬間に一度だけ流す（同日本人指示で分離）
+  finaleSeen: false,
 }
 
 export function kusuriCountOf(recipeId: string): number {
@@ -649,6 +655,20 @@ export function markHengeSeen(chara: string) {
   persist()
 }
 
+// フィナーレのガッツポーズカットインを既読にする（2026-08-01〜）
+export function markFinaleCutinSeen() {
+  if (gameState.finaleCutinSeen) return
+  gameState.finaleCutinSeen = true
+  persist()
+}
+
+// フィナーレ会話（イズナへの報告）を既読にする（2026-08-01〜）
+export function markFinaleSeen() {
+  if (gameState.finaleSeen) return
+  gameState.finaleSeen = true
+  persist()
+}
+
 export function tryCompound(recipe: Recipe): boolean {
   if (!canCompound(recipe)) return false
   for (const [kind, n] of Object.entries(recipe.cost) as [SeedKind, number][]) {
@@ -692,6 +712,8 @@ interface SaveData {
   urabanashiSeen?: Record<string, boolean> // 裏話の既読（2026-07-26追加。追加前のセーブには無い＝全員未読扱い）
   specialSeen?: Record<string, boolean> // 特殊会話の既読（2026-07-26追加。追加前のセーブには無い＝全員未読扱い）
   hengeSeen?: Record<string, boolean> // 変化（人間形態）の話の既読（2026-07-27追加。追加前のセーブには無い＝全員未読扱い）
+  finaleCutinSeen?: boolean // フィナーレカットインの既読（2026-08-01追加。追加前のセーブには無い＝未読扱い）
+  finaleSeen?: boolean // フィナーレ会話（イズナへの報告）の既読（2026-08-01追加。追加前のセーブには無い＝未読扱い）
   seedSpotCollectedAt?: Record<SeedKind, number | null> // 採取クールダウン追加前のセーブには無い
   stageUnlocks?: { summer?: boolean; autumn?: boolean; winter?: boolean } // 季節の門の解放状態（2026-07-19追加。追加前のセーブには無い）
   lastPlayedMs?: number // スロット選択画面の要約表示用
@@ -713,6 +735,8 @@ function persist() {
       urabanashiSeen: gameState.urabanashiSeen,
       specialSeen: gameState.specialSeen,
       hengeSeen: gameState.hengeSeen,
+      finaleCutinSeen: gameState.finaleCutinSeen,
+      finaleSeen: gameState.finaleSeen,
       seedSpotCollectedAt,
       stageUnlocks,
       lastPlayedMs: Date.now(),
@@ -736,6 +760,8 @@ function resetState() {
   gameState.urabanashiSeen = {}
   gameState.specialSeen = {}
   gameState.hengeSeen = {}
+  gameState.finaleCutinSeen = false
+  gameState.finaleSeen = false
   for (const key of Object.keys(questDeliveredAt)) delete questDeliveredAt[key]
   for (const key of Object.keys(plots)) plots[key].plantedAtMs = null
   for (const key of Object.keys(npcStates)) {
@@ -776,6 +802,8 @@ function applySaveData(data: SaveData) {
   if (data.urabanashiSeen) gameState.urabanashiSeen = { ...data.urabanashiSeen }
   if (data.specialSeen) gameState.specialSeen = { ...data.specialSeen }
   if (data.hengeSeen) gameState.hengeSeen = { ...data.hengeSeen }
+  gameState.finaleCutinSeen = data.finaleCutinSeen ?? false
+  gameState.finaleSeen = data.finaleSeen ?? false
   if (data.questDeliveredAt) Object.assign(questDeliveredAt, data.questDeliveredAt)
   for (const key of Object.keys(plots)) {
     if (data.plots?.[key]) plots[key].plantedAtMs = data.plots[key].plantedAtMs

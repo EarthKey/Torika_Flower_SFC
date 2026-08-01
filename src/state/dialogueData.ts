@@ -21,6 +21,8 @@ interface TalkLine {
   // 掛け合い対応（2026-07-25本人指示）。'torika'を指定するとその行は酉花（トリカ）のセリフ・顔グラで出る。
   // 省略時は従来どおり話しかけた相手（chara）の行。これでNPCの独白ではなく会話として書ける
   speaker?: 'torika'
+  // 本文の文字色（2026-08-01〜）。フィナーレでイズナが預かってきた作者メッセージの行だけ金色にする用
+  color?: string
 }
 
 // 掛け合いの行をDialogueLineへ変換する共通処理。speaker:'torika'の行はトリカ側の顔グラ・名前で出す
@@ -32,6 +34,7 @@ function toDialogueLine(line: TalkLine, chara: string, charaName: string): Dialo
     name: isTorika ? TORIKA_NAME : charaName,
     face: line.face,
     text: line.text,
+    color: line.color,
   }
 }
 
@@ -68,6 +71,10 @@ interface CharaDialogues {
   // 初回は世間話より優先して必ず流す（裏話と同じ方式）。既読後は通常プールへ合流。
   // 「薬をくれた恩人にだけ、本当の姿を見せる」信頼の演出のため、初対面では出さない
   henge?: TalkLine[]
+  // フィナーレ独白（2026-08-01〜）。dialogues.jsonの疑似エントリ"finale"だけが持つ。
+  // 全依頼完遂の瞬間に一度だけ流れる酉花のひとりごとで、pickTalkのローテーションには乗せない
+  // （npcStates['finale']が存在しないため、pickTalk経由では絶対に選ばれない）
+  finale?: TalkLine[]
 }
 
 let data: Record<string, CharaDialogues> = {}
@@ -159,4 +166,12 @@ export function crossTalkLinesFor(chara: string, tier: number): DialogueLine[] |
   const talk = charaData?.crossTalk?.[tier]
   if (!talk) return null
   return talk.map((line) => toDialogueLine(line, chara, charaData.name))
+}
+
+// フィナーレ会話（全依頼完遂の瞬間・一度きり）。前半は酉花の独白（speaker:'torika'の行）、
+// 後半はイズナが作者メッセージを預かって語る（speaker省略の行＝イズナ）。本文未執筆ならnull
+export function finaleLines(): DialogueLine[] | null {
+  const talk = data['finale']?.finale
+  if (!talk) return null
+  return talk.map((line) => toDialogueLine(line, 'izuna', 'イズナ'))
 }

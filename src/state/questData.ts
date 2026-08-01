@@ -995,6 +995,13 @@ export function allStage4QuestsEverDelivered(): boolean {
   return QUESTS_STAGE4.every((q) => questDeliveredAt[q.id] !== undefined)
 }
 
+// 全依頼（ステージ1〜4＋春組・夏組の季節追加分、ALL_QUESTSの全件）を渡し終えているか。
+// フィナーレ特殊会話の発火条件（2026-08-01追加）。ゲーム全体の実質エンディング判定で、
+// 将来のギャラリーモード解放条件にもこの関数を使う想定
+export function allQuestsEverDelivered(): boolean {
+  return ALL_QUESTS.every((q) => questDeliveredAt[q.id] !== undefined)
+}
+
 // ── 季節の門の解放条件（2026-07-25本人指示で明文化・統一） ──────────────────
 // 門の条件は「そのステージの担当3キャラに、それぞれ1件でも渡し終えたか」。
 // 春(QUESTS)・夏(QUESTS_STAGE2)は各キャラ1件ずつの3件構成なので従来と同じ挙動だが、
