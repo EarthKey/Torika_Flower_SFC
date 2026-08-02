@@ -17,6 +17,12 @@ const TEST_UNLIMITED_KUSURI = false
 // 確認したいときに使う。確認が終わったら必ずfalseに戻すこと
 const TEST_START_WITH_MEDALS = true
 
+// テストプレイ用の一時措置（2026-08-01本人依頼）: trueの間、セーブを読み込むたびに
+// フィナーレの既読（カットイン＋イズナ報告会話）をリセットし、演出をもう一度見られるようにする。
+// 里に入り直すとカットイン→「イズナに報告しに行こう」→イズナで会話＋一枚絵、が再演される。
+// 確認が終わったら必ずfalseに戻すこと（trueのままだとロードのたびに毎回フィナーレが流れる）
+const TEST_REPLAY_FINALE = true
+
 // ステージ1（春・甲賀）3種＋ステージ2（夏・風魔）3種＋ステージ3（秋・雑賀）3種＋ステージ4（冬・伊賀）3種。
 // ステージが増えるたびにここへ追加する。乾姜(kankyou)は生姜と同一植物のため種・成長段階の
 // アセットは生姜(syoukyou)のものを流用する方針（2026-07-23本人指示）だが、レシピ上は
@@ -802,8 +808,8 @@ function applySaveData(data: SaveData) {
   if (data.urabanashiSeen) gameState.urabanashiSeen = { ...data.urabanashiSeen }
   if (data.specialSeen) gameState.specialSeen = { ...data.specialSeen }
   if (data.hengeSeen) gameState.hengeSeen = { ...data.hengeSeen }
-  gameState.finaleCutinSeen = data.finaleCutinSeen ?? false
-  gameState.finaleSeen = data.finaleSeen ?? false
+  gameState.finaleCutinSeen = TEST_REPLAY_FINALE ? false : data.finaleCutinSeen ?? false
+  gameState.finaleSeen = TEST_REPLAY_FINALE ? false : data.finaleSeen ?? false
   if (data.questDeliveredAt) Object.assign(questDeliveredAt, data.questDeliveredAt)
   for (const key of Object.keys(plots)) {
     if (data.plots?.[key]) plots[key].plantedAtMs = data.plots[key].plantedAtMs
