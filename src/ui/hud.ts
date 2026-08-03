@@ -216,28 +216,28 @@ function openKusuriCard() {
 // 別途 ffmpeg drawtext（UDDigiKyokashoN-B.ttc が標準搭載・動作確認済み）で焼き込み版を作る
 const HOWTO_PAGES = [
   {
-    title: 'そうさほうほう',
-    body: 'パソコン: やじるしキー か WASD で移動。行きたい場所をクリックしてもOK。Spaceキーで しらべる・はなす。\nスマホ: 行きたい場所をタップすると歩いていくよ。',
+    title: '操作方法',
+    body: 'パソコン: 矢印キー か WASD で移動。行きたい場所をクリックしてもOK。Spaceキーで調べる・話す。\nスマホ: 行きたい場所をタップすると歩いていきます。',
   },
   {
-    title: 'たねを とりにいこう',
+    title: '種を採りに行こう',
     body: '里の上にある鳥居をくぐると「種の聖域」へ。キラキラ光る採取スポットの前で Space！',
   },
   {
-    title: 'たねを うえよう',
-    body: 'とってきた種は、里の畑にうえよう。育ったら収穫して、生薬（しょうやく）メダルをあつめてね。',
+    title: '種を植えよう',
+    body: '採ってきた種は、里の畑に植えよう。育ったら収穫して、生薬（しょうやく）メダルを集めてね。',
   },
   {
-    title: 'おくすりを つくって わたそう',
-    body: '工房の調合台でメダルをえらんで、おくすりを調合！ 咲耶（サクヤ）の症状を聞いて、ぴったりのお薬をとどけよう。',
+    title: 'お薬を作って渡そう',
+    body: '工房の調合台でメダルを選んで、お薬を調合！ 咲耶（サクヤ）の症状を聞いて、ぴったりのお薬を届けよう。',
   },
   {
-    title: 'みんなの なやみも きいてあげよう',
-    body: 'シャオランや ネムも、体の悩みをかかえているみたい。話を聞いて、合うお薬をわたしてあげてね。',
+    title: '皆の悩みも聞いてあげよう',
+    body: 'シャオランやネムも、体の悩みを抱えているみたい。話を聞いて、合うお薬を渡してあげてね。',
   },
   {
-    title: 'なやみを かいけつすると……',
-    body: '里のみんなを癒やすと、あたらしいステージへの門が ひらくかも！',
+    title: '悩みを解決すると……',
+    body: '里の皆を癒やすと、新しいステージへの門が開くかも！',
   },
 ]
 
@@ -274,7 +274,7 @@ function renderHowtoPage() {
   pager.textContent = `${howtoPage + 1} / ${HOWTO_PAGES.length}`
   prev.style.visibility = howtoPage === 0 ? 'hidden' : 'visible'
   // 最終ページは「はじめる」に切り替え、押すとビューアを閉じてゲーム本編へ戻る（本人指示）
-  next.textContent = last ? 'はじめる！' : 'つぎ ▶'
+  next.textContent = last ? '始める！' : '次へ ▶'
   next.style.background = last ? 'rgba(140,80,30,0.9)' : 'rgba(20,15,10,0.75)'
 }
 
@@ -303,7 +303,7 @@ function openHowto() {
         padding: 18px 22px; width: min(640px, 92vw);
         font-family: monospace; color: #f2e6c8; text-align: center;
       ">
-        <button id="howto-close" title="とじる（ゲームにもどる）" style="
+        <button id="howto-close" title="閉じる（ゲームに戻る）" style="
           position: absolute; top: -14px; right: -14px; width: 40px; height: 40px;
           font-size: 20px; line-height: 1; font-family: monospace; font-weight: bold;
           background: rgba(90,24,24,0.95); color: #fff2f0; border: 2px solid #e8b4b4;
@@ -332,10 +332,10 @@ function openHowto() {
         <div style="display: flex; align-items: center; gap: 12px;">
           <button id="howto-prev" style="font-size: 18px; font-family: monospace; padding: 8px 18px;
             background: rgba(20,15,10,0.75); color: #f2e6c8; border: 2px solid #8a6a3a;
-            border-radius: 8px; cursor: pointer;">◀ まえ</button>
+            border-radius: 8px; cursor: pointer;">◀ 前へ</button>
           <button id="howto-next" style="font-size: 18px; font-family: monospace; font-weight: bold;
             padding: 8px 22px; background: rgba(20,15,10,0.75); color: #f2e6c8;
-            border: 2px solid #8a6a3a; border-radius: 8px; cursor: pointer;">つぎ ▶</button>
+            border: 2px solid #8a6a3a; border-radius: 8px; cursor: pointer;">次へ ▶</button>
           <span id="howto-pager" style="margin-left: auto; font-size: 28px; font-weight: bold;
             color: #ffd9a0; letter-spacing: 2px;"></span>
         </div>
@@ -396,7 +396,7 @@ function showKusuriCard(r: Recipe) {
           <div style="margin-top: 4px;">
             <span style="border: 2px solid #c9a24a; border-radius: 999px; padding: 2px 14px; font-size: 18px; color: #ffe9a8;">${r.numberLabel}</span>
           </div>
-          <div style="margin-top: 10px; font-size: 13px; color: #a89468;">画面のどこかをクリック／SPACEキーでとじる</div>
+          <div style="margin-top: 10px; font-size: 13px; color: #a89468;">画面のどこかをクリック／SPACEキーで閉じる</div>
         </div>
       </div>
     `
@@ -424,9 +424,9 @@ function showKusuriCard(r: Recipe) {
         <div style="margin-top: 4px;">
           <span style="border: 2px solid #c9a24a; border-radius: 999px; padding: 2px 14px; font-size: 18px; color: #ffe9a8;">${r.numberLabel}</span>
         </div>
-        <div style="margin-top: 14px; font-size: 18px; color: #d8c8a8;">つかう生薬（しょうやく）: ${costRow}</div>
+        <div style="margin-top: 14px; font-size: 18px; color: #d8c8a8;">使う生薬（しょうやく）: ${costRow}</div>
         <div style="margin-top: 12px; font-size: 20px; line-height: 1.6;">${r.desc}</div>
-        <div style="margin-top: 14px; font-size: 14px; color: #a89468;">画面のどこかをクリック／SPACEキーでとじる</div>
+        <div style="margin-top: 14px; font-size: 14px; color: #a89468;">画面のどこかをクリック／SPACEキーで閉じる</div>
       </div>
     </div>
   `
@@ -982,7 +982,7 @@ function openTitleConfirm() {
       align-items: center; max-width: min(460px, 90vw); text-align: center;
     ">
       <div style="font-size: 22px; color: #f2e6c8; line-height: 1.6;">本当に戻りますか？</div>
-      <div style="font-size: 14px; color: #c8b088;">ここまでの記録は じどうで ほぞんされています</div>
+      <div style="font-size: 14px; color: #c8b088;">ここまでの記録は自動で保存されています</div>
       <div style="display: flex; gap: 14px; flex-wrap: wrap; justify-content: center;">
         <button data-cancel style="
           font-family: monospace; font-size: 19px; color: #f2e6c8;
