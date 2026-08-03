@@ -14,6 +14,9 @@ export interface DialogueLine {
   face: number
   text: string // 「**」で囲んだ部分はemScale倍で拡大表示される（花占いの花名・運勢結果など）
   emScale?: number // **囲み部分の文字拡大率（省略時2倍）。花占いの結果は3倍で使う
+  // **囲みの見た目（2026-08-03新設）。省略時は従来の拡大のみ。'advice'は太字＋1.2倍＋金色で、
+  // チュートリアル系セリフの要点強調に使う（花占いの大文字演出とは別系統）
+  emStyle?: 'advice'
   color?: string // 本文の文字色（省略時は通常の#fff2f0）。フィナーレの作者メッセージを金色にする用（2026-08-01〜）
   onShow?: () => void // この行が表示された瞬間に呼ばれる（チュートリアルの案内矢印などの演出フック）
 }
@@ -36,7 +39,7 @@ function plainLength(segments: TextSegment[]): number {
 }
 
 // 先頭からupTo文字ぶんだけをスパン構成で描画する（タイプライターと全文表示の共通処理）
-function renderSegments(el: HTMLElement, segments: TextSegment[], upTo: number, emScale: number) {
+function renderSegments(el: HTMLElement, segments: TextSegment[], upTo: number, emScale: number, emStyle?: 'advice') {
   el.textContent = ''
   let remaining = upTo
   for (const seg of segments) {
@@ -48,6 +51,10 @@ function renderSegments(el: HTMLElement, segments: TextSegment[], upTo: number, 
       span.textContent = take
       span.style.fontSize = `${26 * emScale}px`
       span.style.lineHeight = '1.2'
+      if (emStyle === 'advice') {
+        span.style.fontWeight = 'bold'
+        span.style.color = '#ffd97a' // フィナーレの作者メッセージと同じ金色（アドバイスの目印）
+      }
       el.appendChild(span)
     } else {
       el.appendChild(document.createTextNode(take))
@@ -152,7 +159,7 @@ export function advanceDialogue() {
     if (textEl) {
       const line = lines[lineIndex]
       const segments = parseSegments(line.text)
-      renderSegments(textEl, segments, plainLength(segments), line.emScale ?? 2)
+      renderSegments(textEl, segments, plainLength(segments), line.emScale ?? (line.emStyle === 'advice' ? 1.2 : 2), line.emStyle)
     }
     if (cursorEl) cursorEl.style.visibility = 'visible'
     return
@@ -176,14 +183,14 @@ function showLine() {
   // タイプライター表示。1文字ずつ進め、完了したら▼を出す（**囲みの拡大部分も1文字ずつ出す）
   const segments = parseSegments(line.text)
   const totalLength = plainLength(segments)
-  const emScale = line.emScale ?? 2
+  const emScale = line.emScale ?? (line.emStyle === 'advice' ? 1.2 : 2)
   window.clearInterval(typingTimer)
   typingPos = 0
   textEl.textContent = ''
   cursorEl.style.visibility = 'hidden'
   typingTimer = window.setInterval(() => {
     typingPos++
-    renderSegments(textEl!, segments, typingPos, emScale)
+    renderSegments(textEl!, segments, typingPos, emScale, line.emStyle)
     if (typingPos >= totalLength) {
       window.clearInterval(typingTimer)
       typingTimer = undefined

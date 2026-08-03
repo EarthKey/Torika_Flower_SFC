@@ -23,6 +23,8 @@ interface TalkLine {
   speaker?: 'torika'
   // 本文の文字色（2026-08-01〜）。フィナーレでイズナが預かってきた作者メッセージの行だけ金色にする用
   color?: string
+  // **囲みの見た目（2026-08-03〜）。'advice'=太字＋1.2倍＋金色。チュートリアル系セリフの要点強調用
+  emStyle?: 'advice'
 }
 
 // 掛け合いの行をDialogueLineへ変換する共通処理。speaker:'torika'の行はトリカ側の顔グラ・名前で出す
@@ -35,6 +37,7 @@ function toDialogueLine(line: TalkLine, chara: string, charaName: string): Dialo
     face: line.face,
     text: line.text,
     color: line.color,
+    emStyle: line.emStyle,
   }
 }
 
@@ -158,6 +161,11 @@ export function pickTalk(chara: string, season: Season): DialogueLine[] | null {
 
 // キャラごとの「直前に選んだ会話」。同じ会話が2連続で出るのを避けるためだけの揮発状態
 const lastTalkIndex: Record<string, number> = {}
+
+// 表示名の取得（2026-08-03・話しかけヒント用）。未登録キャラはnull
+export function charaNameOf(chara: string): string | null {
+  return data[chara]?.name ?? null
+}
 
 // クロストーク本文を取得する（questData.checkCrossTalkUnlockが新規解放tierを返したときだけ呼ぶ）。
 // 該当tierの本文が未執筆ならnull（executed=trueなのに本文が無い場合の保険。次工程で埋める）

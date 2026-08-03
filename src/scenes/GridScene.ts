@@ -1,6 +1,6 @@
 import Phaser from 'phaser'
 import { isDialogueOpen, advanceDialogue, openDialogue } from '../ui/dialogue'
-import { pickTalk, crossTalkLinesFor, finaleLines } from '../state/dialogueData'
+import { pickTalk, crossTalkLinesFor, finaleLines, charaNameOf } from '../state/dialogueData'
 import {
   gameState,
   recordTalk,
@@ -35,7 +35,7 @@ import {
   GIFT_TRUST_BONUS,
   type Quest,
 } from '../state/questData'
-import { showMessage, showToast, showGiftPicker, showQuestChoice, showSeasonGateCutin, showFinaleCutin, showFinaleIllust, updateHud, isCompoundMovieOpen, isOverlayOpen } from '../ui/hud'
+import { showMessage, showToast, showGiftPicker, showQuestChoice, showSeasonGateCutin, showFinaleCutin, showFinaleIllust, showTalkHint, updateHud, isCompoundMovieOpen, isGateCutinOpen, isOverlayOpen } from '../ui/hud'
 import { zoomState } from '../state/options'
 import { playSfx } from '../state/sfx'
 
@@ -327,6 +327,21 @@ export abstract class GridScene extends Phaser.Scene {
     return this.npcs.find((n) => n.row === this.playerRow + dr && n.col === this.playerCol + dc)
   }
 
+  // 話しかけヒントの表示更新（2026-08-03本人指示）。向いている先のNPC＝Spaceで実際に
+  // 話せる相手がいるときだけ「〇〇と話す（Space）」を出す。毎フレーム呼ばれるため、
+  // 相手が変わった瞬間だけDOMを更新する
+  private lastHintChara: string | null = null
+  private refreshTalkHint() {
+    const busy = isDialogueOpen() || isOverlayOpen() || isCompoundMovieOpen() || isGateCutinOpen()
+    const npc = busy ? undefined : this.adjacentNpc()
+    const chara = npc?.chara ?? null
+    if (chara === this.lastHintChara) return
+    this.lastHintChara = chara
+    // 配色: シーンの季節に合わせる。イズナだけは季節を問わず白黒（2026-08-03本人指示）
+    const theme = chara === 'izuna' ? 'mono' : this.sceneSeason
+    showTalkHint(chara ? charaNameOf(chara) ?? chara : null, theme)
+  }
+
   // 花占いのポストのように「置物の手前で向き合う」接し方をする設置物向けの判定。
   // 現在立っているマスがkindと一致すればそこで反応し、一致しなければ向いている先の
   // マスも見る（NPCと同じ隣接+正対の考え方）。2026-07-26修正: 通行不可の置物1マス分の
@@ -589,6 +604,10 @@ export abstract class GridScene extends Phaser.Scene {
   update() {
     // 置物の前後関係はウインドウ表示中でも維持したいので、どの早期returnより前に更新する
     this.refreshPropDepths()
+
+    // 話しかけヒント（2026-08-03本人指示）: NPCの隣にいる間だけ「〇〇と話す（Space）」を表示。
+    // 会話・ムービー・各種ウインドウ表示中は消す。毎フレーム呼ぶがDOM更新は変化時のみ
+    this.refreshTalkHint()
 
     // 調合ムービー表示中は移動・アクションを止める。スキップはhud.ts側のkeydownリスナーが
     // 担当するため、ここではSPACEのJustDownフラグだけ消費してムービー終了直後に

@@ -10,6 +10,7 @@ let messageEl: HTMLDivElement | null = null
 let messageTimer: number | undefined
 let toastContainer: HTMLDivElement | null = null
 let soundBtn: HTMLButtonElement | null = null
+let seBtn: HTMLButtonElement | null = null
 let howtoBtn: HTMLButtonElement | null = null
 let cardEl: HTMLDivElement | null = null
 let howtoGuideArrowEl: HTMLDivElement | null = null
@@ -67,6 +68,26 @@ export function mountHud() {
   })
   refreshSoundButton()
   document.body.appendChild(soundBtn)
+
+  // 効果音音量ボタン（2026-08-03本人指示）。音量ボタンの真下に置き、
+  // クリックで 100% → 50% → ミュート を循環（メイン音量と同じ下げ方）。
+  // seVolumeはoptions.tsの復元対象なので、こちらは再起動後も保持される
+  seBtn = document.createElement('button')
+  seBtn.id = 'se-toggle'
+  seBtn.style.cssText = `
+    position: fixed; top: 64px; right: 12px;
+    font-size: 18px; line-height: 26px; font-family: monospace; font-weight: bold;
+    background: rgba(20,15,10,0.75); color: #f2e6c8;
+    padding: 8px 10px; border: 2px solid #8a6a3a; border-radius: 8px;
+    cursor: pointer; z-index: 25;
+  `
+  seBtn.addEventListener('click', () => {
+    options.seVolume = options.seVolume >= 1 ? 0.5 : options.seVolume >= 0.5 ? 0 : 1
+    saveOptions()
+    refreshSeButton()
+  })
+  refreshSeButton()
+  document.body.appendChild(seBtn)
 
   // 「遊び方」ボタン（2026-07-25本人指示）。音量ボタンの左隣・横長の枠。
   // 久しぶりに遊ぶ人がデモの説明をいつでも見返せるよう、4:3の紹介イラストのページ送りビューアを開く
@@ -924,14 +945,22 @@ function refreshSoundButton() {
   soundBtn.title = `音量: ${Math.round(options.masterVolume * 100)}%`
 }
 
+function refreshSeButton() {
+  if (!seBtn) return
+  seBtn.textContent = options.seVolume >= 1 ? 'SE🔊' : options.seVolume >= 0.5 ? 'SE🔉' : 'SE🔇'
+  seBtn.title = `効果音: ${Math.round(options.seVolume * 100)}%`
+}
+
 // タイトル画面ではHUDを隠し、ゲーム開始時に表示する
 export function setHudVisible(visible: boolean) {
   const display = visible ? '' : 'none'
   if (hudEl) hudEl.style.display = display
   if (messageEl) messageEl.style.display = display
   if (soundBtn) soundBtn.style.display = display // 音量ボタンもゲーム中のみ表示（タイトルはオプションで調整）
+  if (seBtn) seBtn.style.display = display // 効果音ボタンも同様
   if (howtoBtn) howtoBtn.style.display = display // 遊び方ボタンも同様
   if (!visible) setHowtoGuideArrow(false) // タイトルへ戻るとき矢印も消す
+  if (!visible) showTalkHint(null) // タイトルへ戻るとき話しかけヒントも消す
   if (!visible) closeKusuriCard() // タイトルへ戻るとき解説カードも閉じる（入力ロックも解除する）
   if (!visible) closeHowto() // 遊び方ビューアも同様（lockの取り残し防止）
   // タイトルへ戻るときは各ウインドウも閉じる。display操作を直書きすると入力ロックが
@@ -1023,6 +1052,44 @@ export function updateHud() {
     メダル:${medalRow}<br>
     薬:${kusuriRow}
   `
+}
+
+// 話しかけヒント（2026-08-03本人指示）: NPCの隣のマスに来たら「〇〇と話す（Space）」を
+// 画面下部に常時表示する（離れたら消える）。下端の一時メッセージ（showMessage）と
+// 重ならないよう、少し上に置く。表示のON/OFFはGridScene側が毎フレーム判定して呼ぶ。
+// 配色は季節の魔法陣に合わせる（同日本人指示: 春=ピンク・夏=青・秋=黄・冬=緑。イズナだけ白黒）
+export type TalkHintTheme = 'spring' | 'summer' | 'autumn' | 'winter' | 'mono'
+const TALK_HINT_THEMES: Record<TalkHintTheme, { bg: string; border: string; text: string }> = {
+  spring: { bg: 'rgba(88, 24, 40, 0.88)', border: '#ff9ed0', text: '#ffd9e2' },
+  summer: { bg: 'rgba(14, 42, 78, 0.88)', border: '#7fd4ff', text: '#dff4ff' },
+  autumn: { bg: 'rgba(84, 54, 10, 0.88)', border: '#ffd97a', text: '#ffedc0' },
+  winter: { bg: 'rgba(12, 62, 44, 0.88)', border: '#8ff0c8', text: '#dcffee' },
+  mono: { bg: 'rgba(28, 28, 28, 0.9)', border: '#e8e8e8', text: '#f5f5f5' },
+}
+let talkHintEl: HTMLDivElement | null = null
+
+export function showTalkHint(name: string | null, theme: TalkHintTheme = 'spring') {
+  if (!talkHintEl) {
+    talkHintEl = document.createElement('div')
+    talkHintEl.id = 'talk-hint'
+    talkHintEl.style.cssText = `
+      position: fixed; bottom: 84px; left: 50%; transform: translateX(-50%);
+      font-family: monospace; font-size: 22px; font-weight: bold;
+      padding: 6px 22px; border-radius: 18px; border: 2px solid;
+      pointer-events: none; display: none; white-space: nowrap;
+    `
+    document.body.appendChild(talkHintEl)
+  }
+  if (!name) {
+    talkHintEl.style.display = 'none'
+    return
+  }
+  const t = TALK_HINT_THEMES[theme]
+  talkHintEl.style.background = t.bg
+  talkHintEl.style.borderColor = t.border
+  talkHintEl.style.color = t.text
+  talkHintEl.textContent = `💬 ${name}と話す（Space）`
+  talkHintEl.style.display = 'block'
 }
 
 export function showMessage(text: string) {
