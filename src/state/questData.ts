@@ -942,8 +942,9 @@ export const QUESTS_STAGE4: Quest[] = [
 ]
 
 // ステージ1〜4をまとめた全依頼（activeQuestFor等はこちらを見る）。各キャラの追加依頼は
-// 元の依頼の直後（同じ配列内・後続の追加専用配列）に置き、季節の順で進むようにしてある
-const ALL_QUESTS: Quest[] = [
+// 元の依頼の直後（同じ配列内・後続の追加専用配列）に置き、季節の順で進むようにしてある。
+// ギャラリーモードの解放判定（galleryData.ts）でもキャラ別の依頼一覧として参照する
+export const ALL_QUESTS: Quest[] = [
   ...QUESTS,
   ...QUESTS_SPRING_SEASONAL,
   ...QUESTS_STAGE2,

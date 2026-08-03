@@ -13,7 +13,7 @@ import { AutumnWorkshopScene } from './scenes/AutumnWorkshopScene'
 import { WinterHomeScene } from './scenes/WinterHomeScene'
 import { WinterSeedFieldScene } from './scenes/WinterSeedFieldScene'
 import { WinterWorkshopScene } from './scenes/WinterWorkshopScene'
-import { mountHud, setHudVisible } from './ui/hud'
+import { mountHud, setHudVisible, setReturnToTitleHandler } from './ui/hud'
 import { mountDialogue } from './ui/dialogue'
 
 mountHud()
@@ -47,6 +47,15 @@ const game = new Phaser.Game({
     WinterSeedFieldScene,
     WinterWorkshopScene,
   ],
+})
+
+// HUDの「タイトルに戻る」（2026-08-03）。今動いているシーンを止めてTitleSceneへ。
+// HUDはDOMだけを持つ設計なので、Phaser側の処理はここで注入する
+setReturnToTitleHandler(() => {
+  setHudVisible(false)
+  const active = game.scene.getScenes(true).filter((s) => s.scene.key !== 'TitleScene')
+  for (const s of active) s.scene.stop()
+  game.scene.start('TitleScene')
 })
 
 // 音量設定をPhaserのサウンドマネージャへ反映。master=SoundManager全体、BGM=再生中の曲個別

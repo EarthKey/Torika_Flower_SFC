@@ -15,13 +15,13 @@ const TEST_UNLIMITED_KUSURI = false
 // TEST_UNLIMITED_KUSURIと違い、消費すればちゃんと減り、完成薬(kusuriCounts)も
 // 調合で増える・渡して減るという通常の挙動のまま。渡す前後でセリフがどう変わるかを
 // 確認したいときに使う。確認が終わったら必ずfalseに戻すこと
-const TEST_START_WITH_MEDALS = true
+const TEST_START_WITH_MEDALS = false
 
 // テストプレイ用の一時措置（2026-08-01本人依頼）: trueの間、セーブを読み込むたびに
 // フィナーレの既読（カットイン＋イズナ報告会話）をリセットし、演出をもう一度見られるようにする。
 // 里に入り直すとカットイン→「イズナに報告しに行こう」→イズナで会話＋一枚絵、が再演される。
 // 確認が終わったら必ずfalseに戻すこと（trueのままだとロードのたびに毎回フィナーレが流れる）
-const TEST_REPLAY_FINALE = true
+const TEST_REPLAY_FINALE = false
 
 // ステージ1（春・甲賀）3種＋ステージ2（夏・風魔）3種＋ステージ3（秋・雑賀）3種＋ステージ4（冬・伊賀）3種。
 // ステージが増えるたびにここへ追加する。乾姜(kankyou)は生姜と同一植物のため種・成長段階の
@@ -327,7 +327,7 @@ export function giveKusuri(recipeId: string): boolean {
 // 本番バランス（2026-07-27改訂・本人指示で線形カーブへ再設計）。段階1→4に3段階ぶんかかるので、
 // 2時間×3＝**6時間で収穫可能**になる（収穫カーブの最初の刻みと一致させる。§下記参照）
 // TEST_FAST_GROWTH: 実機プレイ確認用の一時短縮。確認が終わったら必ず false に戻すこと
-const TEST_FAST_GROWTH = true
+const TEST_FAST_GROWTH = false
 export const GROWTH_MS_PER_STAGE = TEST_FAST_GROWTH ? 5 * 1000 : 2 * 60 * 60 * 1000
 
 export interface PlotState {
@@ -703,7 +703,7 @@ const slotKey = (slot: number) => `torikka-flower-save-slot${slot}`
 
 let activeSlot: number | null = null
 
-interface SaveData {
+export interface SaveData {
   seeds: Record<SeedKind, number>
   medals: Record<SeedKind, number>
   kusuriCounts?: Record<string, number> // 処方別所持数（2026-07-19〜）
@@ -824,7 +824,8 @@ function applySaveData(data: SaveData) {
   stageUnlocks.winter = data.stageUnlocks?.winter ?? false
 }
 
-function readSlot(slot: number): SaveData | null {
+// ギャラリーの解放判定（galleryData.ts）が3スロットを走査するためにも使う
+export function readSlot(slot: number): SaveData | null {
   try {
     const raw = localStorage.getItem(slotKey(slot))
     if (!raw) return null

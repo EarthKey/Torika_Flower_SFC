@@ -11,7 +11,15 @@ let messageTimer: number | undefined
 let toastContainer: HTMLDivElement | null = null
 let soundBtn: HTMLButtonElement | null = null
 let seBtn: HTMLButtonElement | null = null
+let titleBtn: HTMLButtonElement | null = null
+let titleConfirmEl: HTMLDivElement | null = null
 let howtoBtn: HTMLButtonElement | null = null
+
+// 「タイトルに戻る」の実処理はシーン側（main.ts）が登録する。HUDはDOMだけを持ちPhaserを直接触らない
+let returnToTitleHandler: (() => void) | null = null
+export function setReturnToTitleHandler(fn: () => void) {
+  returnToTitleHandler = fn
+}
 let cardEl: HTMLDivElement | null = null
 let howtoGuideArrowEl: HTMLDivElement | null = null
 
@@ -88,6 +96,22 @@ export function mountHud() {
   })
   refreshSeButton()
   document.body.appendChild(seBtn)
+
+  // 「タイトルに戻る」ボタン（2026-08-03本人指示）。SEボタンの真下。
+  // セーブはイベント毎の自動セーブ済みなので、確認さえ取れればそのまま戻ってよい
+  titleBtn = document.createElement('button')
+  titleBtn.id = 'title-return'
+  titleBtn.textContent = 'タイトル'
+  titleBtn.style.cssText = `
+    position: fixed; top: 118px; right: 12px;
+    font-size: 15px; line-height: 22px; font-family: monospace; font-weight: bold;
+    background: rgba(20,15,10,0.75); color: #f2e6c8;
+    padding: 7px 10px; border: 2px solid #8a6a3a; border-radius: 8px;
+    cursor: pointer; z-index: 25;
+  `
+  titleBtn.title = 'タイトル画面に戻る'
+  titleBtn.addEventListener('click', () => openTitleConfirm())
+  document.body.appendChild(titleBtn)
 
   // 「遊び方」ボタン（2026-07-25本人指示）。音量ボタンの左隣・横長の枠。
   // 久しぶりに遊ぶ人がデモの説明をいつでも見返せるよう、4:3の紹介イラストのページ送りビューアを開く
@@ -939,6 +963,66 @@ export function setHowtoGuideArrow(show: boolean) {
   if (howtoGuideArrowEl) howtoGuideArrowEl.style.display = show ? 'block' : 'none'
 }
 
+// タイトルに戻る確認（2026-08-03本人指示）。誤操作でプレイ中断しないよう必ず一度確認する。
+// 初期フォーカスは「やめる」側（タイトルのスロット削除確認と同じ流儀）
+function openTitleConfirm() {
+  if (titleConfirmEl) return
+  const el = document.createElement('div')
+  titleConfirmEl = el
+  el.id = 'title-confirm'
+  el.style.cssText = `
+    position: fixed; inset: 0; z-index: 45; display: flex;
+    align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.7); font-family: monospace;
+  `
+  el.innerHTML = `
+    <div style="
+      background: rgba(38,24,12,0.96); border: 3px solid #c9a24a; border-radius: 12px;
+      padding: 24px 30px; display: flex; flex-direction: column; gap: 16px;
+      align-items: center; max-width: min(460px, 90vw); text-align: center;
+    ">
+      <div style="font-size: 22px; color: #f2e6c8; line-height: 1.6;">本当に戻りますか？</div>
+      <div style="font-size: 14px; color: #c8b088;">ここまでの記録は じどうで ほぞんされています</div>
+      <div style="display: flex; gap: 14px; flex-wrap: wrap; justify-content: center;">
+        <button data-cancel style="
+          font-family: monospace; font-size: 19px; color: #f2e6c8;
+          background: transparent; border: 2px solid #e8c86a; border-radius: 8px;
+          padding: 8px 24px; cursor: pointer;">やめる</button>
+        <button data-ok style="
+          font-family: monospace; font-size: 19px; color: #f2e6c8;
+          background: transparent; border: 2px solid #8a6a3a; border-radius: 8px;
+          padding: 8px 24px; cursor: pointer;">タイトルに戻る</button>
+      </div>
+    </div>
+  `
+  const close = () => {
+    el.remove()
+    titleConfirmEl = null
+    window.removeEventListener('keydown', onKey, true)
+  }
+  // キー入力はキャプチャで奪い、裏のゲーム操作へ通さない
+  const onKey = (e: KeyboardEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
+    if (e.key === 'Escape') close()
+  }
+  el.querySelector('[data-cancel]')?.addEventListener('click', close)
+  el.querySelector('[data-ok]')?.addEventListener('click', () => {
+    close()
+    returnToTitleHandler?.()
+  })
+  el.addEventListener('click', (e) => {
+    if (e.target === el) close() // 背景クリックは「やめる」扱い
+  })
+  window.addEventListener('keydown', onKey, true)
+  document.body.appendChild(el)
+}
+
+function closeTitleConfirm() {
+  titleConfirmEl?.remove()
+  titleConfirmEl = null
+}
+
 function refreshSoundButton() {
   if (!soundBtn) return
   soundBtn.textContent = options.masterVolume >= 1 ? '🔊' : options.masterVolume >= 0.5 ? '🔉' : '🔇'
@@ -958,7 +1042,9 @@ export function setHudVisible(visible: boolean) {
   if (messageEl) messageEl.style.display = display
   if (soundBtn) soundBtn.style.display = display // 音量ボタンもゲーム中のみ表示（タイトルはオプションで調整）
   if (seBtn) seBtn.style.display = display // 効果音ボタンも同様
+  if (titleBtn) titleBtn.style.display = display // タイトルに戻るボタンも同様
   if (howtoBtn) howtoBtn.style.display = display // 遊び方ボタンも同様
+  if (!visible) closeTitleConfirm() // タイトルへ戻るとき確認ダイアログの取り残しも防ぐ
   if (!visible) setHowtoGuideArrow(false) // タイトルへ戻るとき矢印も消す
   if (!visible) showTalkHint(null) // タイトルへ戻るとき話しかけヒントも消す
   if (!visible) closeKusuriCard() // タイトルへ戻るとき解説カードも閉じる（入力ロックも解除する）
