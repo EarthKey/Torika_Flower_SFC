@@ -5,7 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- タブのアイコン（2026-07-26追加）。link自体が無く、Vite初期の紫ロゴも読まれていなかった -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>トリッカフラワー 〜咲耶の里と薬草の祠〜</title>
+    <!-- サブタイトルはロゴ・タイトル画面と同じ「花咲く忍の里」が正。
+         ここだけV1時代の旧サブタイトルが残っていた（2026-08-04修正） -->
+    <title>トリッカフラワー 〜花咲く忍の里〜</title>
+    <meta
+      name="description"
+      content="畑で生薬を育て、調合して、四つの里のみんなに薬を届けるブラウザゲーム。忍の里を舞台に、漢方の処方を遊びながら覚えられます。"
+    />
+
+    <!-- OGP（2026-08-04追加）。Xで共有されたときにカードが出ないと告知が届かないため。
+         og:imageは絶対URLでないと読まれない。画像はpublic/ogp.png（1200x630） -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="トリッカフラワー" />
+    <meta property="og:title" content="トリッカフラワー 〜花咲く忍の里〜" />
+    <meta
+      property="og:description"
+      content="畑で生薬を育て、調合して、四つの里のみんなに薬を届けるブラウザゲーム。忍の里を舞台に、漢方の処方を遊びながら覚えられます。"
+    />
+    <meta property="og:url" content="https://torika-flower-sfc.vercel.app/" />
+    <meta property="og:image" content="https://torika-flower-sfc.vercel.app/ogp.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
     <style>
       html, body {
         margin: 0;
