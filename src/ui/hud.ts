@@ -14,6 +14,8 @@ let seBtn: HTMLButtonElement | null = null
 let titleBtn: HTMLButtonElement | null = null
 let titleConfirmEl: HTMLDivElement | null = null
 let howtoBtn: HTMLButtonElement | null = null
+let authorBtn: HTMLButtonElement | null = null
+let authorEl: HTMLDivElement | null = null
 
 // 「タイトルに戻る」の実処理はシーン側（main.ts）が登録する。HUDはDOMだけを持ちPhaserを直接触らない
 let returnToTitleHandler: (() => void) | null = null
@@ -128,6 +130,52 @@ export function mountHud() {
   howtoBtn.addEventListener('click', () => openHowto())
   document.body.appendChild(howtoBtn)
 
+  // 「作った人」ボタン（2026-08-04本人指示）。右下に**常時表示**（タイトル画面でも消さない）。
+  // ブラウザゲームは作者情報が辿れないまま遊ばれて終わることが多いので、
+  // どの画面からでも1クリックで作者紹介（X/Substack/ポートフォリオ）へ行ける導線を常設する。
+  // 遊びの邪魔をしないよう普段は半透明で、hoverで金枠が立ち上がる控えめな出方にしている
+  authorBtn = document.createElement('button')
+  authorBtn.id = 'author-open'
+  authorBtn.textContent = '作った人'
+  authorBtn.style.cssText = `
+    position: fixed; bottom: 12px; right: 12px;
+    font-size: 15px; line-height: 22px; font-family: monospace; font-weight: bold;
+    background: rgba(20,15,10,0.6); color: #d8c79a;
+    padding: 7px 14px; border: 2px solid #6d5630; border-radius: 8px;
+    cursor: pointer; z-index: 25; opacity: 0.72;
+    transition: opacity 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+  `
+  authorBtn.title = 'このゲームを作った人について'
+  authorBtn.addEventListener('mouseenter', () => {
+    if (!authorBtn) return
+    authorBtn.style.opacity = '1'
+    authorBtn.style.borderColor = '#c9a24a'
+    authorBtn.style.color = '#ffe9a8'
+  })
+  authorBtn.addEventListener('mouseleave', () => {
+    if (!authorBtn) return
+    authorBtn.style.opacity = '0.72'
+    authorBtn.style.borderColor = '#6d5630'
+    authorBtn.style.color = '#d8c79a'
+  })
+  authorBtn.addEventListener('click', () => openAuthorCard())
+  document.body.appendChild(authorBtn)
+
+  // 作者紹介カードの器（中身はopenAuthorCardで組む。背景クリックで閉じる）
+  authorEl = document.createElement('div')
+  authorEl.id = 'author-card'
+  authorEl.style.cssText = `
+    position: fixed; inset: 0; display: none;
+    align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.6); z-index: 45;
+  `
+  authorEl.addEventListener('click', (e) => {
+    // カード本体のクリックは閉じない（リンクを押せるようにする）。背景と×だけが閉じる
+    const t = e.target as HTMLElement
+    if (t === authorEl || t.dataset.authorClose !== undefined) closeAuthorCard()
+  })
+  document.body.appendChild(authorEl)
+
   // イントロ最後の案内用「遊び方ボタンを指す上向き矢印」（2026-07-27本人指示）。
   // 「わからなくなったらみんなに聞いて」ではなく「遊び方をいつでも見返せる」ことを教える導線。
   // 種の聖域・畑・工房を指すPhaser側の矢印(guide_arrow・40x46)はワールド座標前提のため、
@@ -151,7 +199,11 @@ export function mountHud() {
   `
   document.body.appendChild(howtoGuideArrowEl)
   const arrowStyle = document.createElement('style')
-  arrowStyle.textContent = `@keyframes howto-arrow-bob { from { transform: translateY(0); } to { transform: translateY(10px); } }`
+  arrowStyle.textContent = `
+    @keyframes howto-arrow-bob { from { transform: translateY(0); } to { transform: translateY(10px); } }
+    /* 作者カードのリンク行。hoverは擬似クラスが要るのでインラインstyleでは書けずここに置く */
+    #author-card .author-link:hover { background: rgba(255,233,168,0.14); border-color: #c9a24a; }
+  `
   document.head.appendChild(arrowStyle)
 
   // 薬アイコンのクリックで解説カードを開く（HUDはpointer-events:noneだが、
@@ -196,6 +248,114 @@ function openKusuriCard() {
   lockGameInput((e) => {
     if (e.code === 'Space' || e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Escape') {
       closeKusuriCard()
+    }
+  })
+}
+
+// ── 作った人カード（2026-08-04本人指示） ──────────────────
+// 右下の「作った人」から開く作者紹介。ゲームを遊んだ人が作者の発信へ辿り着ける唯一の導線なので、
+// 「誰が・なぜ作ったか」を1画面で読み切れる分量に抑え、リンクは押しやすい大きな行で並べる。
+//
+// リンクの増やし方: 下のAUTHOR_LINKSに1件足すだけ（並び順＝表示順）。
+// CryptoNinjaキャラ再現GPTs／プロンプト教材（Brain）は公開が決まり次第ここへ追加する予定。
+// noteのアイコンは絵文字で代用している（画像アセットを増やさず文字だけで完結させるため）
+interface AuthorLink {
+  icon: string
+  label: string
+  sub: string
+  url: string
+}
+
+const AUTHOR_LINKS: AuthorLink[] = [
+  {
+    icon: '𝕏',
+    label: 'X（旧Twitter）',
+    sub: '@EarthGigantea ／ ふだんの発信はこちら',
+    url: 'https://x.com/EarthGigantea',
+  },
+  {
+    icon: '📮',
+    label: 'Substack',
+    sub: 'earthkey.substack.com ／ 医療とAIの読みもの',
+    url: 'https://earthkey.substack.com/',
+  },
+  {
+    icon: '🌐',
+    label: 'ポートフォリオ',
+    sub: 'earthkey-portfolio.vercel.app ／ 作ったものの一覧',
+    url: 'https://earthkey-portfolio.vercel.app/',
+  },
+  // 教材が公開できたらこの下へ1件追加する（CryptoNinjaキャラ再現GPTs／プロンプト）
+]
+
+let authorOpen = false
+
+function closeAuthorCard() {
+  if (!authorOpen) return
+  authorOpen = false
+  if (authorEl) authorEl.style.display = 'none'
+  unlockGameInput()
+}
+
+function openAuthorCard() {
+  if (!authorEl || authorOpen) return
+  const rows = AUTHOR_LINKS.map(
+    (l) => `
+      <a href="${l.url}" target="_blank" rel="noopener noreferrer" class="author-link" style="
+        display: flex; align-items: center; gap: 14px; text-decoration: none;
+        background: rgba(255,233,168,0.06); border: 2px solid #6d5630; border-radius: 8px;
+        padding: 11px 16px; color: #f2e6c8;
+      ">
+        <span style="font-size: 22px; width: 28px; text-align: center; flex-shrink: 0;">${l.icon}</span>
+        <span style="min-width: 0;">
+          <span style="display: block; font-size: 17px; font-weight: bold; color: #ffe9a8;">${l.label}</span>
+          <span style="display: block; font-size: 12px; color: #a89468; margin-top: 2px;">${l.sub}</span>
+        </span>
+        <span style="margin-left: auto; font-size: 15px; color: #a89468; flex-shrink: 0;">↗</span>
+      </a>`,
+  ).join('')
+
+  authorEl.innerHTML = `
+    <div style="
+      position: relative; max-width: min(560px, 92vw); max-height: 92vh; overflow-y: auto;
+      background: rgba(20,15,10,0.96); color: #f2e6c8;
+      border: 3px solid #c9a24a; border-radius: 10px;
+      padding: 26px 28px 22px; font-family: monospace;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.6);
+    ">
+      <button data-author-close style="
+        position: absolute; top: 8px; right: 10px;
+        background: none; border: none; color: #a89468;
+        font-size: 22px; line-height: 1; cursor: pointer; font-family: monospace;
+      ">×</button>
+
+      <div style="font-size: 12px; color: #a89468; letter-spacing: 0.18em;">CREATED BY</div>
+      <div style="font-size: 28px; font-weight: bold; color: #ffe9a8; margin-top: 4px; line-height: 1.3;">
+        アースキー
+      </div>
+      <div style="font-size: 13px; color: #a89468; margin-top: 2px;">EarthKey</div>
+
+      <div style="font-size: 14px; line-height: 1.85; margin-top: 16px;">
+        現役の病院薬剤師をしながら、AIで作れるものを作っています。<br>
+        このゲームは「生薬と漢方を、遊びながら手ざわりで覚えられたら」という思いつきから、
+        NinjaDAOのキャラクターたちに登場してもらって形にしました。
+      </div>
+
+      <div style="height: 1px; background: #6d5630; margin: 18px 0 14px;"></div>
+
+      <div style="display: flex; flex-direction: column; gap: 9px;">${rows}</div>
+
+      <div style="font-size: 12px; color: #a89468; margin-top: 16px; line-height: 1.7;">
+        キャラクターは CryptoNinja / CryptoNinja Partners の二次創作です。<br>
+        カードの外側・×・ESCキーで閉じます。
+      </div>
+    </div>
+  `
+  authorEl.style.display = 'flex'
+  authorOpen = true
+  lockGameInput((e) => {
+    if (e.code === 'Escape' || e.code === 'Space' || e.code === 'Enter' || e.code === 'NumpadEnter') {
+      closeAuthorCard()
     }
   })
 }
@@ -1044,6 +1204,9 @@ export function setHudVisible(visible: boolean) {
   if (seBtn) seBtn.style.display = display // 効果音ボタンも同様
   if (titleBtn) titleBtn.style.display = display // タイトルに戻るボタンも同様
   if (howtoBtn) howtoBtn.style.display = display // 遊び方ボタンも同様
+  // 「作った人」ボタンだけはタイトル画面でも消さない（2026-08-04本人指示・常時表示の導線）。
+  // ただしカードは閉じる。開いたままタイトルへ戻ると入力ロックが残り、キーが一切効かなくなる
+  if (!visible) closeAuthorCard()
   if (!visible) closeTitleConfirm() // タイトルへ戻るとき確認ダイアログの取り残しも防ぐ
   if (!visible) setHowtoGuideArrow(false) // タイトルへ戻るとき矢印も消す
   if (!visible) showTalkHint(null) // タイトルへ戻るとき話しかけヒントも消す
