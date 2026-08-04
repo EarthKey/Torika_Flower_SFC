@@ -285,7 +285,12 @@ const AUTHOR_LINKS: AuthorLink[] = [
     sub: 'earthkey-portfolio.vercel.app ／ 作ったものの一覧',
     url: 'https://earthkey-portfolio.vercel.app/',
   },
-  // 教材が公開できたらこの下へ1件追加する（CryptoNinjaキャラ再現GPTs／プロンプト）
+  {
+    icon: '📖',
+    label: 'クリプトニンジャAI創作スターターキット',
+    sub: 'Brain教材 ／ このゲームのキャラたちをAIで再現する入口',
+    url: 'https://brmk.io/rnmJcc',
+  },
 ]
 
 let authorOpen = false
@@ -377,7 +382,9 @@ function openAuthorCard() {
 const HOWTO_PAGES = [
   {
     title: '操作方法',
-    body: 'パソコン: 矢印キー か WASD で移動。行きたい場所をクリックしてもOK。Spaceキーで調べる・話す。\nスマホ: 行きたい場所をタップすると歩いていきます。',
+    // スマホの記述は削除（2026-08-04本人指示）。移動はタップでできるが、種まき・収穫・調合が
+    // Spaceキー専用でスマホでは遊びきれないため、「スマホでも遊べる」と誤解させない
+    body: '矢印キー か WASD で移動。行きたい場所をクリックしてもOK。Spaceキーで調べる・話す。',
   },
   {
     title: '種を採りに行こう',
