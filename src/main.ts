@@ -14,11 +14,27 @@ import { WinterHomeScene } from './scenes/WinterHomeScene'
 import { WinterSeedFieldScene } from './scenes/WinterSeedFieldScene'
 import { WinterWorkshopScene } from './scenes/WinterWorkshopScene'
 import { mountHud, setHudVisible, setReturnToTitleHandler } from './ui/hud'
-import { mountDialogue } from './ui/dialogue'
+import { mountDialogue, preloadFace } from './ui/dialogue'
 
 mountHud()
 setHudVisible(false) // タイトル画面の間は隠す（ゲーム開始時にTitleSceneが表示する）
 mountDialogue()
+
+// 顔グラの全量先読み（2026-08-05）。会話を開いた瞬間の顔グラ表示ラグ対策の第二段。
+// ページの読み込みが落ち着いてから、空き時間に全キャラ×全表情をHTTPキャッシュへ乗せる。
+// 柴・猫又だけ変化（人間形態）ぶんの10〜12番まである
+window.addEventListener('load', () => {
+  window.setTimeout(() => {
+    const charas = [
+      'torika', 'izuna', 'sakuya', 'xiaolan', 'nemu', 'janome', 'aum',
+      'ibuki', 'shiba', 'nekomata', 'benten', 'anne', 'yui', 'hayate',
+    ]
+    for (const c of charas) {
+      const max = c === 'shiba' || c === 'nekomata' ? 12 : 9
+      for (let f = 1; f <= max; f++) preloadFace(c, f)
+    }
+  }, 1500)
+})
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,

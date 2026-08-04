@@ -62,6 +62,22 @@ function renderSegments(el: HTMLElement, segments: TextSegment[], upTo: number, 
   }
 }
 
+// ── 顔グラの事前読み込み（2026-08-05） ──────────────────
+// 顔グラはセリフ表示の瞬間に初めてfetchされるため、タイプライターの本文に
+// イラストが追いつかないラグがあった（本人報告）。二段構えで解消する:
+//   ①openDialogue時にその会話で使う顔を全部先読み（会話中の表情替えも即時になる）
+//   ②起動後の空き時間に全キャラ分を先読み（main.tsから呼ぶ。数秒で全会話が即表示化）
+// ブラウザのHTTPキャッシュに乗せるだけなので、Imageオブジェクトは保持しない
+const preloadedFaces = new Set<string>()
+
+export function preloadFace(speaker: string, face: number) {
+  const src = `assets/chara/${speaker}_face_${face}.png`
+  if (preloadedFaces.has(src)) return
+  preloadedFaces.add(src)
+  const img = new Image()
+  img.src = src
+}
+
 let windowEl: HTMLDivElement | null = null
 let portraitEl: HTMLImageElement | null = null
 let nameEl: HTMLDivElement | null = null
@@ -143,6 +159,8 @@ export function isDialogueOpen(): boolean {
 
 export function openDialogue(dialogueLines: DialogueLine[], onEnd?: () => void) {
   if (!windowEl || dialogueLines.length === 0) return
+  // この会話で使う顔グラを全部先読み（2行目以降の表情替えを即時にする）
+  for (const l of dialogueLines) preloadFace(l.speaker, l.face)
   lines = dialogueLines
   lineIndex = 0
   onEndCallback = onEnd
