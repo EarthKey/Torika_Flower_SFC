@@ -249,6 +249,16 @@ export function mountHud() {
     @keyframes howto-arrow-bob { from { transform: translateY(0); } to { transform: translateY(10px); } }
     /* 作者カードのリンク行。hoverは擬似クラスが要るのでインラインstyleでは書けずここに置く */
     #author-card .author-link:hover { background: rgba(255,233,168,0.14); border-color: #c9a24a; }
+    /* 教材の宣伝枠（2026-08-05）。金→朱のグラデーションを保ったまま、金の光をゆっくり呼吸させる */
+    #author-card .author-link--promo { animation: promo-glow 2.6s ease-in-out infinite; }
+    #author-card .author-link--promo:hover {
+      background: linear-gradient(90deg, rgba(201,162,74,0.34), rgba(184,67,46,0.3));
+      border-color: #ffe9a8;
+    }
+    @keyframes promo-glow {
+      0%, 100% { box-shadow: 0 0 12px rgba(201,162,74,0.2); }
+      50%      { box-shadow: 0 0 24px rgba(201,162,74,0.45); }
+    }
   `
   document.head.appendChild(arrowStyle)
 
@@ -310,6 +320,9 @@ interface AuthorLink {
   label: string
   sub: string
   url: string
+  // 宣伝枠（2026-08-05本人指示）。金→朱のグラデーション＋「教材」バッジで1件だけ強調する。
+  // 公式サイト側の.links__promoと同じ意匠。全部を光らせると強調にならないので1件だけに使う
+  promo?: boolean
 }
 
 const AUTHOR_LINKS: AuthorLink[] = [
@@ -336,6 +349,7 @@ const AUTHOR_LINKS: AuthorLink[] = [
     label: 'クリプトニンジャAI創作スターターキット',
     sub: 'Brain教材 ／ このゲームのキャラたちをAIで再現する入口',
     url: 'https://brmk.io/rnmJcc',
+    promo: true,
   },
 ]
 
@@ -350,21 +364,33 @@ function closeAuthorCard() {
 
 function openAuthorCard() {
   if (!authorEl || authorOpen) return
-  const rows = AUTHOR_LINKS.map(
-    (l) => `
-      <a href="${l.url}" target="_blank" rel="noopener noreferrer" class="author-link" style="
+  const rows = AUTHOR_LINKS.map((l) => {
+    const promoStyle = l.promo
+      ? `background: linear-gradient(90deg, rgba(201,162,74,0.22), rgba(184,67,46,0.2));
+         border-color: #c9a24a;`
+      : ''
+    const badge = l.promo
+      ? `<span style="flex-shrink: 0; font-size: 12px; font-weight: bold; letter-spacing: 2px;
+           color: #fff5ee; background: #b8432e; border-radius: 4px; padding: 3px 9px;">教材</span>`
+      : ''
+    return `
+      <a href="${l.url}" target="_blank" rel="noopener noreferrer"
+        class="author-link${l.promo ? ' author-link--promo' : ''}" style="
         display: flex; align-items: center; gap: 14px; text-decoration: none;
         background: rgba(255,233,168,0.06); border: 2px solid #6d5630; border-radius: 8px;
-        padding: 11px 16px; color: #f2e6c8;
+        padding: 11px 16px; color: #f2e6c8; ${promoStyle}
       ">
         <span style="font-size: 22px; width: 28px; text-align: center; flex-shrink: 0;">${l.icon}</span>
         <span style="min-width: 0;">
           <span style="display: block; font-size: 17px; font-weight: bold; color: #ffe9a8;">${l.label}</span>
-          <span style="display: block; font-size: 12px; color: #a89468; margin-top: 2px;">${l.sub}</span>
+          <span style="display: block; font-size: 12px; color: ${l.promo ? '#c4b088' : '#a89468'}; margin-top: 2px;">${l.sub}</span>
         </span>
-        <span style="margin-left: auto; font-size: 15px; color: #a89468; flex-shrink: 0;">↗</span>
-      </a>`,
-  ).join('')
+        <span style="margin-left: auto; display: flex; align-items: center; gap: 10px; flex-shrink: 0;">
+          ${badge}
+          <span style="font-size: 15px; color: ${l.promo ? '#c9a24a' : '#a89468'};">↗</span>
+        </span>
+      </a>`
+  }).join('')
 
   authorEl.innerHTML = `
     <div style="
