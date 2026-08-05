@@ -16,6 +16,7 @@ let titleConfirmEl: HTMLDivElement | null = null
 let howtoBtn: HTMLButtonElement | null = null
 let authorBtn: HTMLButtonElement | null = null
 let authorEl: HTMLDivElement | null = null
+let fsBtn: HTMLButtonElement | null = null
 
 // 「タイトルに戻る」の実処理はシーン側（main.ts）が登録する。HUDはDOMだけを持ちPhaserを直接触らない
 let returnToTitleHandler: (() => void) | null = null
@@ -160,6 +161,51 @@ export function mountHud() {
   })
   authorBtn.addEventListener('click', () => openAuthorCard())
   document.body.appendChild(authorBtn)
+
+  // 「⛶ 全画面」トグル（2026-08-05本人指示・案A: 全画面の主導権をゲーム内へ）。
+  // 親ページ（公式サイトの埋め込み）側で全画面化すると、全画面中は親のボタンが
+  // 一切見えず「元に戻す」がESCだけになる。入る・戻るを同じボタンでゲーム内に常設し、
+  // 「作った人」の上に重ねてタイトル画面でも出す。ESCで戻った場合もラベルは追従する
+  fsBtn = document.createElement('button')
+  fsBtn.id = 'fullscreen-toggle'
+  fsBtn.style.cssText = `
+    position: fixed; bottom: 64px; right: 12px;
+    font-size: 15px; line-height: 22px; font-family: monospace; font-weight: bold;
+    background: rgba(20,15,10,0.6); color: #d8c79a;
+    padding: 7px 14px; border: 2px solid #6d5630; border-radius: 8px;
+    cursor: pointer; z-index: 25; opacity: 0.72;
+    transition: opacity 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+  `
+  const refreshFsButton = () => {
+    if (!fsBtn) return
+    const on = !!document.fullscreenElement
+    fsBtn.textContent = on ? '✕ 元に戻す' : '⛶ 全画面'
+    fsBtn.title = on ? '全画面をやめる（ESCでも戻れます）' : '全画面で遊ぶ'
+  }
+  fsBtn.addEventListener('mouseenter', () => {
+    if (!fsBtn) return
+    fsBtn.style.opacity = '1'
+    fsBtn.style.borderColor = '#c9a24a'
+    fsBtn.style.color = '#ffe9a8'
+  })
+  fsBtn.addEventListener('mouseleave', () => {
+    if (!fsBtn) return
+    fsBtn.style.opacity = '0.72'
+    fsBtn.style.borderColor = '#6d5630'
+    fsBtn.style.color = '#d8c79a'
+  })
+  fsBtn.addEventListener('click', () => {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen()
+    } else {
+      // documentElementごと全画面にする（HUD・会話ウインドウはDOMなので、canvasだけ
+      // 全画面にすると全部消えてしまう）。拒否されても落とさない
+      document.documentElement.requestFullscreen().catch(() => {})
+    }
+  })
+  document.addEventListener('fullscreenchange', refreshFsButton)
+  refreshFsButton()
+  document.body.appendChild(fsBtn)
 
   // 作者紹介カードの器（中身はopenAuthorCardで組む。背景クリックで閉じる）
   authorEl = document.createElement('div')
@@ -1211,7 +1257,7 @@ export function setHudVisible(visible: boolean) {
   if (seBtn) seBtn.style.display = display // 効果音ボタンも同様
   if (titleBtn) titleBtn.style.display = display // タイトルに戻るボタンも同様
   if (howtoBtn) howtoBtn.style.display = display // 遊び方ボタンも同様
-  // 「作った人」ボタンだけはタイトル画面でも消さない（2026-08-04本人指示・常時表示の導線）。
+  // 「作った人」と「⛶ 全画面」はタイトル画面でも消さない（常時表示の導線・表示切替）。
   // ただしカードは閉じる。開いたままタイトルへ戻ると入力ロックが残り、キーが一切効かなくなる
   if (!visible) closeAuthorCard()
   if (!visible) closeTitleConfirm() // タイトルへ戻るとき確認ダイアログの取り残しも防ぐ
