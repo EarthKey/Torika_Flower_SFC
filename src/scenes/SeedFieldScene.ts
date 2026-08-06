@@ -110,11 +110,12 @@ export class SeedFieldScene extends GridScene {
 
   // 種スポットの採取（クリック/Spaceキー共通）。隣のマス（上下左右）にいるときだけ採れる
   private tryCollect(spot: { cells: [number, number][]; kind: SeedKind }) {
-    const adjacent = spot.cells.some(
-      ([r, c]) => Math.abs(r - this.playerRow) + Math.abs(c - this.playerCol) === 1,
-    )
-    if (!adjacent) {
-      showMessage('もっと近くまで行って採取しよう')
+    // 離れた場所からタップされたら、隣接マスまで自動で歩いてから採取する（2026-08-06スマホ対応）。
+    // 以前は「もっと近くまで行って採取しよう」で突き放しており、1マス単位の位置合わせが
+    // 難しいタッチ操作では採取そのものが難所になっていた（実機評）
+    if (!this.isAdjacentToAny(spot.cells)) {
+      const r = this.approachThen(spot.cells, () => this.tryCollect(spot))
+      if (r === 'unreachable') showMessage('そこへは行けないみたい……')
       return
     }
     const result = collectSeed(spot.kind)

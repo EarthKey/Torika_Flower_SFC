@@ -6,15 +6,27 @@
 export const isTouchDevice =
   window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0
 
-// 案内文の出し分け用。キーボード前提の「Spaceキー」をタッチ端末では「🌸ボタン」と読み替える
-export const ACTION_LABEL = isTouchDevice ? '🌸ボタン' : 'Spaceキー'
+// 案内文の出し分け用。キーボード前提の「Spaceキー」をタッチ端末では「Aボタン」と読み替える
+// （2026-08-06: 🌸アイコンだと決定ボタンだと気づきにくいという実機評を受け、SFC/N64風の
+//  立体的なピンクの「A」ボタンへ変更。呼称も家庭用ゲーム機に揃える）
+export const ACTION_LABEL = isTouchDevice ? 'Aボタン' : 'Spaceキー'
 
 // 案内メッセージ・会話文の「Spaceキー」表記をタッチ端末向けに読み替える一括フィルター。
 // 個々のシーンの文言を書き換えて回ると漏れが出るため、表示直前の1点（showMessage/openDialogue/
 // 遊び方ビューア）で置換する
 export function adaptActionText(text: string): string {
   if (!isTouchDevice) return text
-  return text.replace(/Spaceキー/g, '🌸ボタン').replace(/Space/g, '🌸ボタン')
+  return (
+    text
+      // 長い組み合わせから順に置換する（先に「矢印キー/WASD」を消すと残りが壊れるため）
+      .replace(/矢印キー\/WASD\/クリック/g, '十字キー／タップ')
+      .replace(/矢印キー\/WASD/g, '十字キー')
+      .replace(/矢印キーかWASD/g, '十字キー')
+      .replace(/矢印キー か WASD/g, '十字キー')
+      .replace(/Spaceキー/g, 'Aボタン')
+      .replace(/Space/g, 'Aボタン')
+      .replace(/クリック/g, 'タップ')
+  )
 }
 
 let virtualActionPressed = false

@@ -230,23 +230,48 @@ export function mountHud() {
   // 実機評: 「植える操作が難しい→左下に専用アクションボタン」「移動・ステージ間移動が
   // しづらい→右下に上下左右ボタン」「薬が増えるとHUDが画面を圧迫→荷物ボタン化」（本人指示）
   if (isTouchDevice) {
-    // 🌸アクション（Space相当）: 左下。種まき・収穫・調合・花占い・話しかけ・会話送り
+    // CSS側の分岐用（幅ではなく「タッチ端末かどうか」で当てる。横持ちだと幅844px等になり
+    // max-widthのメディアクエリが外れてUIが崩れていたため。2026-08-06実機評）
+    document.body.classList.add('touch-ui')
+
+    // Aボタン（Space相当）: 左下。種まき・収穫・調合・花占い・話しかけ・会話送り。
+    // 見た目はSFC/N64の決定ボタン風（ピンクの立体。2026-08-06実機評:
+    // 🌸アイコンだと「これが決定ボタン」と気づきにくかった）
     actionBtn = document.createElement('button')
     actionBtn.id = 'virtual-action'
-    actionBtn.textContent = '🌸'
+    actionBtn.textContent = 'A'
+    const actionRaised = `0 7px 0 #8d2049, 0 10px 16px rgba(0,0,0,0.45),
+      inset 0 3px 7px rgba(255,255,255,0.55), inset 0 -4px 9px rgba(0,0,0,0.28)`
+    const actionPressed = `0 2px 0 #8d2049, 0 3px 7px rgba(0,0,0,0.45),
+      inset 0 2px 5px rgba(0,0,0,0.3)`
     actionBtn.style.cssText = `
-      position: fixed; left: 18px; bottom: 42px; width: 84px; height: 84px;
-      font-size: 42px; line-height: 1; padding: 0;
-      background: rgba(20,15,10,0.72); color: #ffe9a8;
-      border: 3px solid #c9a24a; border-radius: 50%;
+      position: fixed; left: 18px; bottom: 46px; width: 88px; height: 88px;
+      font-family: Verdana, "Segoe UI", sans-serif; font-size: 40px; font-weight: 900;
+      line-height: 1; padding: 0; letter-spacing: 0;
+      background: radial-gradient(circle at 34% 28%, #ffb3d1 0%, #ff6f9f 46%, #e04a7c 100%);
+      color: #ffffff; text-shadow: 0 2px 4px rgba(120,20,60,0.65);
+      border: 3px solid #ffe3ee; border-radius: 50%;
+      box-shadow: ${actionRaised};
       cursor: pointer; z-index: 25; touch-action: manipulation;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+      transition: box-shadow 0.05s linear, transform 0.05s linear;
     `
     actionBtn.title = '調べる・話す・種まき・収穫・調合'
-    actionBtn.addEventListener('pointerdown', (e) => {
+    const actionDown = (e: Event) => {
       e.preventDefault() // ダブルタップズーム・フォーカス移動・クリック合成を止める
+      if (!actionBtn) return
+      actionBtn.style.boxShadow = actionPressed
+      actionBtn.style.transform = 'translateY(5px)'
       pressVirtualAction()
-    })
+    }
+    const actionUp = () => {
+      if (!actionBtn) return
+      actionBtn.style.boxShadow = actionRaised
+      actionBtn.style.transform = ''
+    }
+    actionBtn.addEventListener('pointerdown', actionDown)
+    actionBtn.addEventListener('pointerup', actionUp)
+    actionBtn.addEventListener('pointercancel', actionUp)
+    actionBtn.addEventListener('pointerleave', actionUp)
     document.body.appendChild(actionBtn)
 
     // ズームトグル（Zキー相当）: 🌸の上
@@ -326,14 +351,29 @@ export function mountHud() {
     // 所持品HUDは🎒ボタンの下に開く（インラインのtop:8pxを上書き）
     hudEl.style.top = '52px'
 
-    // タッチ端末では「作った人」「全画面」を右上のボタン列（音量・SE・タイトルの下）へ移す。
-    // 右下は十字キー、左下は🌸が占有するため（2026-08-06実機フィードバック）
-    authorBtn.style.bottom = ''
-    authorBtn.style.top = '144px'
-    authorBtn.style.right = '8px'
-    fsBtn.style.bottom = ''
-    fsBtn.style.top = '190px'
-    fsBtn.style.right = '8px'
+    // ── 右上ボタン列をひとつの折り返しコンテナへまとめる（2026-08-06横持ち対応） ──
+    // 従来は各ボタンを top:10/64/118/144/190 と絶対座標で縦積みしていたため、
+    // 横持ち（高さ390px）では列が画面下まで伸び、十字キー・ゲーム画面と重なっていた。
+    // flex-wrapのコンテナに入れると、縦持ちでは折り返して2〜3段、横持ちでは1段に収まる。
+    // PC（非タッチ）は従来の絶対座標のままで、この付け替えを通らない
+    const topBar = document.createElement('div')
+    topBar.id = 'touch-topbar'
+    topBar.style.cssText = `
+      position: fixed; top: 6px; right: 8px; z-index: 25;
+      display: flex; flex-wrap: wrap; gap: 6px;
+      justify-content: flex-end; align-items: flex-start;
+      max-width: calc(100vw - 130px);
+    `
+    for (const b of [howtoBtn, soundBtn, seBtn, titleBtn, authorBtn, fsBtn]) {
+      b.style.position = 'static'
+      b.style.top = ''
+      b.style.right = ''
+      b.style.bottom = ''
+      b.style.left = ''
+      b.style.opacity = '1' // 作った人・全画面は既定で半透明だが、列に並ぶと沈むので揃える
+      topBar.appendChild(b)
+    }
+    document.body.appendChild(topBar)
   }
 
   // 作者紹介カードの器（中身はopenAuthorCardで組む。背景クリックで閉じる）
@@ -388,30 +428,53 @@ export function mountHud() {
       0%, 100% { box-shadow: 0 0 12px rgba(201,162,74,0.2); }
       50%      { box-shadow: 0 0 24px rgba(201,162,74,0.45); }
     }
-    /* ── スマホ縦持ちレイアウト（2026-08-06スマホ対応） ──
-       各UIはインラインstyleで組まれているため、ここのメディアクエリで!important上書きする。
-       720px以下＝縦持ちスマホ想定。HUD・メッセージ・会話・ヒントをキャンバス寸法に合わせて縮める */
-    @media (max-width: 720px) {
-      #hud { font-size: 15px !important; line-height: 1.5 !important; padding: 6px 8px !important;
-             max-width: calc(100vw - 16px); }
-      #hud img { height: 22px !important; margin: 0 2px 0 7px !important; }
-      #message { font-size: 15px !important; padding: 8px 12px !important; max-width: 94vw !important; }
-      #talk-hint { font-size: 14px !important; white-space: normal !important; max-width: 82vw;
-                   bottom: 64px !important; text-align: center; }
-      #dialogue { min-height: 132px !important; padding: 10px 12px !important; gap: 10px !important;
-                  bottom: 8px !important; z-index: 26 !important; /* 全画面・作った人ボタン(25)より手前。狭幅では重なって本文が読めない */ }
-      #dialogue img { height: 104px !important; }
-      #dialogue-name { font-size: 15px !important; padding: 1px 10px !important; }
-      #dialogue-text { font-size: 16px !important; line-height: 1.5 !important; }
-      #sound-toggle { top: 6px !important; right: 8px !important; font-size: 20px !important; padding: 6px 9px !important; }
-      #se-toggle { top: 52px !important; right: 8px !important; font-size: 14px !important; }
-      #title-return { top: 98px !important; right: 8px !important; font-size: 12px !important; }
-      #howto-toggle { top: 6px !important; right: 58px !important; font-size: 14px !important; padding: 6px 12px !important; }
-      /* 作った人・全画面の位置はタッチ端末ではJS側（mountHudのisTouchDeviceブロック）で
-         右上列へ移すため、ここでは文字サイズのみ調整する。bottomを!importantで上書きすると
-         JSのtop指定と両立して縦に伸びる（2026-08-06に実発生） */
-      #author-open { font-size: 12px !important; padding: 5px 10px !important; }
-      #fullscreen-toggle { font-size: 12px !important; padding: 5px 10px !important; }
+    /* ── タッチ端末のレイアウト（2026-08-06スマホ対応、同日横持ち対応で全面改訂） ──
+       各UIはインラインstyleで組まれているため、ここで!important上書きする。
+       🔴 判定は画面幅ではなく body.touch-ui（＝タッチ端末か）で行う。
+       旧実装は max-width:720px だけを見ており、横持ち（幅844px・高さ390px）では
+       まるごと外れて、ボタン列が十字キーに重なり荷物パネルが画面の1/3を占めていた。
+       右上ボタン群の位置指定はJS側（#touch-topbar）が持つのでここには書かない */
+    body.touch-ui #hud { font-size: 15px !important; line-height: 1.5 !important;
+      padding: 6px 8px !important; max-width: calc(100vw - 16px);
+      max-height: 42vh; overflow-y: auto; }
+    body.touch-ui #hud img { height: 22px !important; margin: 0 2px 0 7px !important; }
+    body.touch-ui #message { font-size: 15px !important; padding: 8px 12px !important; max-width: 94vw !important; }
+    body.touch-ui #talk-hint { font-size: 14px !important; white-space: normal !important;
+      max-width: 82vw; bottom: 64px !important; text-align: center; }
+    /* 会話ウインドウは操作ボタン(25)より手前。狭い画面では重なって本文が読めない */
+    body.touch-ui #dialogue { min-height: 132px !important; padding: 10px 12px !important;
+      gap: 10px !important; bottom: 8px !important; z-index: 26 !important; }
+    body.touch-ui #dialogue img { height: 104px !important; }
+    body.touch-ui #dialogue-name { font-size: 15px !important; padding: 1px 10px !important; }
+    body.touch-ui #dialogue-text { font-size: 16px !important; line-height: 1.5 !important; }
+    body.touch-ui #touch-topbar button { font-size: 13px !important; padding: 6px 10px !important;
+      line-height: 20px !important; }
+    body.touch-ui #sound-toggle { font-size: 18px !important; }
+
+    /* ── 横持ち（画面が低い）専用の詰め ──
+       高さ500px以下＝横持ちスマホ想定。縦の余白が無いので、操作系とパネルを一段小さくし、
+       会話ウインドウがゲーム画面を覆わないようにする */
+    @media (max-height: 500px) {
+      body.touch-ui #hud { font-size: 12px !important; line-height: 1.4 !important;
+        max-height: 60vh; max-width: 62vw; }
+      body.touch-ui #hud img { height: 17px !important; margin: 0 1px 0 5px !important; }
+      body.touch-ui #inv-toggle { font-size: 12px !important; padding: 4px 8px !important; }
+      body.touch-ui #touch-topbar button { font-size: 11px !important; padding: 4px 8px !important;
+        line-height: 16px !important; }
+      body.touch-ui #sound-toggle { font-size: 15px !important; }
+      body.touch-ui #virtual-action { width: 68px !important; height: 68px !important;
+        font-size: 30px !important; bottom: 14px !important; left: 12px !important; }
+      body.touch-ui #virtual-zoom { width: 44px !important; height: 44px !important;
+        font-size: 20px !important; bottom: 92px !important; left: 24px !important; }
+      body.touch-ui #virtual-dpad { width: 132px !important; height: 132px !important;
+        bottom: 8px !important; right: 6px !important; }
+      body.touch-ui #virtual-dpad button { font-size: 17px !important; }
+      body.touch-ui #dialogue { min-height: 96px !important; bottom: 4px !important;
+        width: min(880px, 74vw) !important; }
+      body.touch-ui #dialogue img { height: 76px !important; }
+      body.touch-ui #dialogue-text { font-size: 14px !important; }
+      body.touch-ui #talk-hint { bottom: 118px !important; font-size: 12px !important; }
+      body.touch-ui #message { font-size: 13px !important; bottom: 8px !important; }
     }
   `
   document.head.appendChild(arrowStyle)
@@ -611,13 +674,13 @@ const HOWTO_PAGES = [
     // 2026-08-06スマホ対応: タッチ端末では🌸ボタン（Space相当）を案内する。
     // （2026-08-04に一度スマホの記述を削除したが、同06にアクションボタンを実装して解禁）
     body: isTouchDevice
-      ? '移動は右下の十字キー（行きたい場所をタップでもOK）。左下の 🌸ボタン で調べる・話す。持ち物は左上の 🎒荷物 から見られるよ。'
+      ? '移動は右下の十字キー（行きたい場所をタップでもOK）。左下の Aボタン で調べる・話す。持ち物は左上の 🎒荷物 から見られるよ。'
       : '矢印キー か WASD で移動。行きたい場所をクリックしてもOK。Spaceキーで調べる・話す。',
   },
   {
     title: '種を採りに行こう',
     body: isTouchDevice
-      ? '里の上にある鳥居をくぐると「種の聖域」へ。キラキラ光る採取スポットをタップ！'
+      ? '里の上にある鳥居をくぐると「種の聖域」へ。キラキラ光る採取スポットをタップ、または前に立って Aボタン！'
       : '里の上にある鳥居をくぐると「種の聖域」へ。キラキラ光る採取スポットの前で Space！',
   },
   {
@@ -1581,7 +1644,7 @@ export function showTalkHint(name: string | null, theme: TalkHintTheme = 'spring
   talkHintEl.style.background = t.bg
   talkHintEl.style.borderColor = t.border
   talkHintEl.style.color = t.text
-  talkHintEl.textContent = isTouchDevice ? `💬 ${name}と話す（🌸ボタン）` : `💬 ${name}と話す（Space）`
+  talkHintEl.textContent = isTouchDevice ? `💬 ${name}と話す（Aボタン）` : `💬 ${name}と話す（Space）`
   talkHintEl.style.display = 'block'
 }
 

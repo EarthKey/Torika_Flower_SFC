@@ -105,6 +105,9 @@ export abstract class GridScene extends Phaser.Scene {
   // タッチ用の自動話しかけ（2026-08-06）: 離れたNPCをタップしたとき、隣まで自動移動してから
   // 話しかけるための予約。移動完了時にupdate()が消費する
   private pendingTalkChara: string | null = null
+  // 同じくタッチ用の自動接近（2026-08-06）: 採取スポットなど「隣に立っていないと触れない」
+  // 対象をタップしたとき、隣接マスまで歩いてから処理を実行するための予約
+  private pendingApproach: { cells: [number, number][]; run: () => void } | null = null
 
   constructor(key: string, terrain: Terrain, defaultSpawnCol: number, defaultSpawnRow: number) {
     super(key)
@@ -138,6 +141,7 @@ export abstract class GridScene extends Phaser.Scene {
     this.path = []
     this.suppressClickMove = false
     this.pendingTalkChara = null
+    this.pendingApproach = null
     syncCrossTalkFromDeliveries() // 納品履歴からクロストーク解放数を作り直す（旧セーブ救済）
     this.buildMap()
     this.buildSpecials()
@@ -345,6 +349,45 @@ export abstract class GridScene extends Phaser.Scene {
     // 配色: シーンの季節に合わせる。イズナだけは季節を問わず白黒（2026-08-03本人指示）
     const theme = chara === 'izuna' ? 'mono' : this.sceneSeason
     showTalkHint(chara ? charaNameOf(chara) ?? chara : null, theme)
+  }
+
+  // ── 自動接近（2026-08-06スマホ対応） ────────────────────────
+  // 「隣に立っていないと触れない」対象（種の採取スポット等）を離れた場所からタップしたとき、
+  // 案内メッセージで突き放さず、隣接マスまで歩いてから処理を実行する。
+  // タッチ操作では1マス単位の位置合わせが難しく、実機で「タップで採取しづらい」評があった。
+  // NPCの自動接近（tryTalkTo）と同じ考え方を、汎用の予約として切り出したもの
+  protected isAdjacentToAny(cells: [number, number][]): boolean {
+    return cells.some(([r, c]) => Math.abs(r - this.playerRow) + Math.abs(c - this.playerCol) === 1)
+  }
+
+  // 戻り値: 'done'=既に隣接していて即実行した / 'moving'=接近を予約した / 'unreachable'=到達不能
+  protected approachThen(cells: [number, number][], run: () => void): 'done' | 'moving' | 'unreachable' {
+    if (this.isAdjacentToAny(cells)) {
+      run()
+      return 'done'
+    }
+    const dirs = [
+      { dr: -1, dc: 0 },
+      { dr: 1, dc: 0 },
+      { dr: 0, dc: -1 },
+      { dr: 0, dc: 1 },
+    ]
+    let best: { row: number; col: number }[] | null = null
+    for (const [r0, c0] of cells) {
+      for (const { dr, dc } of dirs) {
+        const r = r0 + dr
+        const c = c0 + dc
+        if (r < 0 || r >= this.rows || c < 0 || c >= this.cols) continue
+        if (!this.walkable[r][c]) continue
+        const found = this.findPath(this.playerRow, this.playerCol, r, c)
+        if (found && (best === null || found.length < best.length)) best = found
+      }
+    }
+    if (!best) return 'unreachable'
+    this.path = best
+    this.pendingTalkChara = null // 予約は同時に1つだけ
+    this.pendingApproach = { cells, run }
+    return 'moving'
   }
 
   // 花占いのポストのように「置物の手前で向き合う」接し方をする設置物向けの判定。
@@ -688,7 +731,8 @@ export abstract class GridScene extends Phaser.Scene {
 
       if (dCol !== 0 || dRow !== 0) {
         this.path = []
-        this.pendingTalkChara = null // 手動移動を始めたら自動話しかけの予約は破棄
+        this.pendingTalkChara = null // 手動移動を始めたら自動接近の予約は破棄
+        this.pendingApproach = null
         this.tryMove(dCol, dRow)
       } else if (this.path.length > 0) {
         const next = this.path.shift()!
@@ -698,6 +742,11 @@ export abstract class GridScene extends Phaser.Scene {
         const chara = this.pendingTalkChara
         this.pendingTalkChara = null
         this.tryTalkTo(chara)
+      } else if (this.pendingApproach) {
+        // 採取スポット等への自動接近が終わったので、予約しておいた処理を実行する
+        const p = this.pendingApproach
+        this.pendingApproach = null
+        if (this.isAdjacentToAny(p.cells)) p.run()
       }
     }
 
@@ -731,7 +780,8 @@ export abstract class GridScene extends Phaser.Scene {
     if (targetCol < 0 || targetCol >= this.cols || targetRow < 0 || targetRow >= this.rows) return
     if (!this.walkable[targetRow][targetCol]) return
 
-    this.pendingTalkChara = null // 地面タップで行き先を変えたら自動話しかけの予約は破棄
+    this.pendingTalkChara = null // 地面タップで行き先を変えたら自動接近の予約は破棄
+    this.pendingApproach = null
     const found = this.findPath(this.playerRow, this.playerCol, targetRow, targetCol)
     if (found) this.path = found
   }
