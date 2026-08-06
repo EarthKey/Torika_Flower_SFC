@@ -89,6 +89,7 @@ let lineIndex = 0
 let onEndCallback: (() => void) | undefined
 
 import { typeMsPerChar } from '../state/options'
+import { adaptActionText } from '../state/device'
 
 // タイプライター演出の状態。表示途中に送り操作をすると全文表示に切り替わる。
 // 1文字あたりの速度はオプション（文字送りの速さ）に従う
@@ -125,6 +126,7 @@ export function mountDialogue() {
   body.style.cssText = 'flex: 1; min-width: 0; align-self: stretch; display: flex; flex-direction: column;'
 
   nameEl = document.createElement('div')
+  nameEl.id = 'dialogue-name' // スマホ用メディアクエリ（hud.ts）の上書き対象
   nameEl.style.cssText = `
     display: inline-block; align-self: flex-start;
     background: rgba(40, 8, 16, 0.9); border: 2px solid #e8b4c0; border-radius: 6px;
@@ -133,6 +135,7 @@ export function mountDialogue() {
   `
 
   textEl = document.createElement('div')
+  textEl.id = 'dialogue-text' // スマホ用メディアクエリ（hud.ts）の上書き対象
   textEl.style.cssText = 'font-size: 26px; line-height: 1.55; white-space: pre-wrap; flex: 1;'
 
   cursorEl = document.createElement('div')
@@ -161,7 +164,9 @@ export function openDialogue(dialogueLines: DialogueLine[], onEnd?: () => void) 
   if (!windowEl || dialogueLines.length === 0) return
   // この会話で使う顔グラを全部先読み（2行目以降の表情替えを即時にする）
   for (const l of dialogueLines) preloadFace(l.speaker, l.face)
-  lines = dialogueLines
+  // タッチ端末では会話文中の「Spaceキー」表記を「🌸ボタン」へ読み替える（2026-08-06スマホ対応。
+  // イントロの操作説明などが対象。通常の会話文にSpace表記は無いので実質無害）
+  lines = dialogueLines.map((l) => ({ ...l, text: adaptActionText(l.text) }))
   lineIndex = 0
   onEndCallback = onEnd
   windowEl.style.display = 'flex'

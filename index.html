@@ -2,7 +2,8 @@
 <html lang="ja">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover: iPhoneのノッチ・ホームバー領域まで使う（2026-08-06スマホ対応） -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <!-- タブのアイコン（2026-07-26追加）。link自体が無く、Vite初期の紫ロゴも読まれていなかった -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <!-- サブタイトルはロゴ・タイトル画面と同じ「花咲く忍の里」が正。
@@ -28,19 +29,38 @@
     <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
     <style>
+      /* 2026-08-06スマホ対応:
+         - box-sizing: border-box を全体に。モーダル類は max-width:92vw ＋ padding ＋ border の
+           構成なので、content-boxのままだと幅375〜430pxの端末で必ず左右にはみ出す
+         - 100vh → 100dvh（iOS SafariのURLバー分でページがスクロールする問題の根治。
+           dvh未対応ブラウザ向けに100vhを先に書いてフォールバックにする）
+         - touch-action等: ダブルタップズーム・プルトゥリフレッシュ・長押し選択がゲーム操作と
+           衝突するのを止める */
+      *, *::before, *::after {
+        box-sizing: border-box;
+      }
       html, body {
         margin: 0;
         padding: 0;
         background: #1a1a1a;
+        overflow: hidden;
+      }
+      body {
         display: flex;
         justify-content: center;
         align-items: center;
-        min-height: 100vh;
+        height: 100vh;
+        height: 100dvh;
+        touch-action: manipulation;
+        overscroll-behavior: none;
+        -webkit-tap-highlight-color: transparent;
+        -webkit-user-select: none;
+        user-select: none;
       }
       #app {
         line-height: 0;
-        width: 100vw;
-        height: 100vh;
+        width: 100%;
+        height: 100%;
       }
     </style>
   </head>
@@ -49,11 +69,16 @@
     <!-- 遊ぶ場所を公式サイトの埋め込みへ一本化（2026-08-05本人指示）。
          ブラウザのストレージ分離で「埋め込み内のセーブ」と「直接アクセスのセーブ」が
          別物になるため、直接開かれたときは公式サイトの遊ぶ枠へ送り、セーブを1つにする。
-         埋め込み内(iframe)とローカル開発では発動しない -->
+         埋め込み内(iframe)とローカル開発では発動しない。
+         2026-08-06スマホ対応: タッチ端末はリダイレクトしない。スマホはページ内スクロールと
+         ゲーム操作が衝突するiframe埋め込みより、直接アクセスの全画面プレイの方が快適で、
+         スマホは常に直接アクセス＝セーブの分裂も起きない（サイト側の「スマホで遊ぶ」ボタンも
+         このURLへ直接リンクする） -->
     <script>
       ;(function () {
         var embedded = window.top !== window.self
-        if (!embedded && location.hostname === 'torika-flower-sfc.vercel.app') {
+        var touch = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0
+        if (!embedded && !touch && location.hostname === 'torika-flower-sfc.vercel.app') {
           location.replace('https://torika-flower-site.vercel.app/#play')
         }
       })()

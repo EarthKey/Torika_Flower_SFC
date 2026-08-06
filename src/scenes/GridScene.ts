@@ -38,6 +38,7 @@ import {
 import { showMessage, showToast, showGiftPicker, showQuestChoice, showSeasonGateCutin, showFinaleCutin, showFinaleIllust, showTalkHint, updateHud, isCompoundMovieOpen, isGateCutinOpen, isOverlayOpen } from '../ui/hud'
 import { zoomState } from '../state/options'
 import { playSfx } from '../state/sfx'
+import { consumeVirtualAction, consumeZoomToggle } from '../state/device'
 
 // 3エリア共通の土台。Tiled形式のマップJSON（scripts/make-maps.mjs が生成、
 // 将来はTiled GUIで編集）を読み込んで地形を描画し、通行判定つきの
@@ -101,6 +102,9 @@ export abstract class GridScene extends Phaser.Scene {
   private path: { row: number; col: number }[] = []
   // クリック可能なUI要素（本棚の本など）が同じクリックを移動として処理しないための抑制フラグ
   protected suppressClickMove = false
+  // タッチ用の自動話しかけ（2026-08-06）: 離れたNPCをタップしたとき、隣まで自動移動してから
+  // 話しかけるための予約。移動完了時にupdate()が消費する
+  private pendingTalkChara: string | null = null
 
   constructor(key: string, terrain: Terrain, defaultSpawnCol: number, defaultSpawnRow: number) {
     super(key)
@@ -133,6 +137,7 @@ export abstract class GridScene extends Phaser.Scene {
     this.isMoving = false
     this.path = []
     this.suppressClickMove = false
+    this.pendingTalkChara = null
     syncCrossTalkFromDeliveries() // 納品履歴からクロストーク解放数を作り直す（旧セーブ救済）
     this.buildMap()
     this.buildSpecials()
@@ -354,20 +359,47 @@ export abstract class GridScene extends Phaser.Scene {
     return matches(this.specAt(this.playerRow + dr, this.playerCol + dc))
   }
 
-  // NPCクリック時の話しかけ判定。離れているときと、隣接していても向きが違うときで案内を分ける
+  // NPCクリック/タップ時の話しかけ判定（2026-08-06スマホ対応で全面改修）。
+  // 旧仕様は「隣接＋正対していないと案内メッセージで弾く」だったが、タッチでは向きを
+  // 直接操作できず実質話しかけ不能だったため、タップを「話しかけたい」という意思表示として扱う:
+  //   離れている → 隣まで自動移動を予約（pendingTalkChara。移動完了後にもう一度ここへ来る）
+  //   隣接している → NPCの方を自動で向いてから話しかける
+  // Space経由の話しかけ（adjacentNpc）は従来どおり正対必須のまま（2026-07-19本人指定を維持）
   private tryTalkTo(chara: string) {
     if (isDialogueOpen()) return
     const npc = this.npcs.find((n) => n.chara === chara)
     if (!npc) return
     const dist = Math.abs(npc.row - this.playerRow) + Math.abs(npc.col - this.playerCol)
     if (dist !== 1) {
-      showMessage('もっと近くまで行って話しかけよう')
+      // NPCの四方の歩けるマスのうち、最短経路で行ける所へ自動移動を予約する
+      const dirs = [
+        { dr: -1, dc: 0 },
+        { dr: 1, dc: 0 },
+        { dr: 0, dc: -1 },
+        { dr: 0, dc: 1 },
+      ]
+      let best: { row: number; col: number }[] | null = null
+      for (const { dr, dc } of dirs) {
+        const r = npc.row + dr
+        const c = npc.col + dc
+        if (r < 0 || r >= this.rows || c < 0 || c >= this.cols) continue
+        if (!this.walkable[r][c]) continue
+        const found = this.findPath(this.playerRow, this.playerCol, r, c)
+        if (found && (best === null || found.length < best.length)) best = found
+      }
+      if (!best) {
+        showMessage('もっと近くまで行って話しかけよう')
+        return
+      }
+      this.path = best
+      this.pendingTalkChara = chara
       return
     }
     const { dr, dc } = this.facingDelta()
     if (npc.row !== this.playerRow + dr || npc.col !== this.playerCol + dc) {
-      showMessage('そちらを向いてから話しかけよう')
-      return
+      // 体をNPCの方へ向けてから話す（旧: 「そちらを向いてから話しかけよう」で弾いていた）
+      this.setFacing(npc.col - this.playerCol, npc.row - this.playerRow)
+      this.setPlayerFrame(2)
     }
     this.startTalk(npc)
   }
@@ -609,12 +641,19 @@ export abstract class GridScene extends Phaser.Scene {
     // 会話・ムービー・各種ウインドウ表示中は消す。毎フレーム呼ぶがDOM更新は変化時のみ
     this.refreshTalkHint()
 
+    // タッチ用ズームボタン（2026-08-06）: Zキーと同じトグル。UI表示中はフラグだけ消費して無視する
+    if (consumeZoomToggle() && !isCompoundMovieOpen() && !isOverlayOpen() && !isDialogueOpen()) {
+      this.setZoomMode(!zoomState.on, true)
+    }
+
     // 調合ムービー表示中は移動・アクションを止める。スキップはhud.ts側のkeydownリスナーが
     // 担当するため、ここではSPACEのJustDownフラグだけ消費してムービー終了直後に
-    // 調合台への再アクションが誤発火しないようにする（2026-07-22修正）
+    // 調合台への再アクションが誤発火しないようにする（2026-07-22修正）。
+    // 画面上ボタン（仮想アクション）のフラグも同じ理由で消費する（以下2箇所も同様）
     if (isCompoundMovieOpen()) {
       this.path = []
       Phaser.Input.Keyboard.JustDown(this.actionKey)
+      consumeVirtualAction()
       return
     }
 
@@ -624,13 +663,16 @@ export abstract class GridScene extends Phaser.Scene {
     if (isOverlayOpen()) {
       this.path = []
       Phaser.Input.Keyboard.JustDown(this.actionKey)
+      consumeVirtualAction()
       return
     }
 
-    // 会話ウインドウ表示中は移動・アクションを止め、Spaceキーはページ送りに使う
+    // 会話ウインドウ表示中は移動・アクションを止め、Spaceキー／画面上ボタンはページ送りに使う
     if (isDialogueOpen()) {
       this.path = []
-      if (Phaser.Input.Keyboard.JustDown(this.actionKey)) advanceDialogue()
+      const key = Phaser.Input.Keyboard.JustDown(this.actionKey)
+      const virtual = consumeVirtualAction()
+      if (key || virtual) advanceDialogue()
       return
     }
 
@@ -645,15 +687,24 @@ export abstract class GridScene extends Phaser.Scene {
 
       if (dCol !== 0 || dRow !== 0) {
         this.path = []
+        this.pendingTalkChara = null // 手動移動を始めたら自動話しかけの予約は破棄
         this.tryMove(dCol, dRow)
       } else if (this.path.length > 0) {
         const next = this.path.shift()!
         this.tryMove(next.col - this.playerCol, next.row - this.playerRow)
+      } else if (this.pendingTalkChara) {
+        // NPCタップの自動移動が終わった（経路を消化した）ので、改めて話しかけを試みる
+        const chara = this.pendingTalkChara
+        this.pendingTalkChara = null
+        this.tryTalkTo(chara)
       }
     }
 
-    if (Phaser.Input.Keyboard.JustDown(this.actionKey)) {
-      // 隣のマスにNPCがいればSpaceキーは話しかけを優先する
+    // Spaceキーと画面上アクションボタン（スマホ）は同じ扱い。両方のフラグを必ず消費する
+    const actionKeyDown = Phaser.Input.Keyboard.JustDown(this.actionKey)
+    const virtualDown = consumeVirtualAction()
+    if (actionKeyDown || virtualDown) {
+      // 隣のマスにNPCがいればアクションは話しかけを優先する
       const npc = this.adjacentNpc()
       if (npc) {
         this.startTalk(npc)
@@ -679,6 +730,7 @@ export abstract class GridScene extends Phaser.Scene {
     if (targetCol < 0 || targetCol >= this.cols || targetRow < 0 || targetRow >= this.rows) return
     if (!this.walkable[targetRow][targetCol]) return
 
+    this.pendingTalkChara = null // 地面タップで行き先を変えたら自動話しかけの予約は破棄
     const found = this.findPath(this.playerRow, this.playerCol, targetRow, targetCol)
     if (found) this.path = found
   }

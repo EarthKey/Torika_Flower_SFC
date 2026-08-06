@@ -4,6 +4,7 @@
 import { gameState, RECIPES, KIND_LABELS_RUBY, KIND_STAGE, stageUnlocks, canCompound, recipeVisibleInUi, takeUrabanashiUnlockNotice, type Recipe, type SeedKind } from '../state/gameState'
 import { options, saveOptions, notifyVolumeChanged } from '../state/options'
 import { playSfx } from '../state/sfx'
+import { isTouchDevice, pressVirtualAction, pressZoomToggle, adaptActionText } from '../state/device'
 
 let hudEl: HTMLDivElement | null = null
 let messageEl: HTMLDivElement | null = null
@@ -17,6 +18,8 @@ let howtoBtn: HTMLButtonElement | null = null
 let authorBtn: HTMLButtonElement | null = null
 let authorEl: HTMLDivElement | null = null
 let fsBtn: HTMLButtonElement | null = null
+let actionBtn: HTMLButtonElement | null = null // 画面上アクションボタン（タッチ端末のみ・2026-08-06）
+let zoomBtn: HTMLButtonElement | null = null
 
 // 「タイトルに戻る」の実処理はシーン側（main.ts）が登録する。HUDはDOMだけを持ちPhaserを直接触らない
 let returnToTitleHandler: (() => void) | null = null
@@ -197,7 +200,7 @@ export function mountHud() {
   fsBtn.addEventListener('click', () => {
     if (document.fullscreenElement) {
       void document.exitFullscreen()
-    } else {
+    } else if (typeof document.documentElement.requestFullscreen === 'function') {
       // documentElementごと全画面にする（HUD・会話ウインドウはDOMなので、canvasだけ
       // 全画面にすると全部消えてしまう）。拒否されても落とさない
       document.documentElement.requestFullscreen().catch(() => {})
@@ -205,7 +208,53 @@ export function mountHud() {
   })
   document.addEventListener('fullscreenchange', refreshFsButton)
   refreshFsButton()
+  // iOS SafariはElement.requestFullscreenを実装していない（2026-08-06確認）。
+  // 押しても何も起きないボタンを出したままにしない（呼ぶと同期TypeErrorにもなる）
+  if (typeof document.documentElement.requestFullscreen !== 'function') {
+    fsBtn.style.display = 'none'
+  }
   document.body.appendChild(fsBtn)
+
+  // ── 画面上アクションボタン（2026-08-06スマホ対応・タッチ端末のみ） ──────────
+  // Spaceキー相当。種まき・収穫・調合・花占い・話しかけ・会話送りがこれ1つで行える。
+  // pointerdownでフラグを立て、GridScene.update()がキーのJustDownと同じ扱いで消費する
+  if (isTouchDevice) {
+    actionBtn = document.createElement('button')
+    actionBtn.id = 'virtual-action'
+    actionBtn.textContent = '🌸'
+    actionBtn.style.cssText = `
+      position: fixed; right: 14px; bottom: 118px; width: 80px; height: 80px;
+      font-size: 40px; line-height: 1; padding: 0;
+      background: rgba(20,15,10,0.72); color: #ffe9a8;
+      border: 3px solid #c9a24a; border-radius: 50%;
+      cursor: pointer; z-index: 25; touch-action: manipulation;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+    `
+    actionBtn.title = '調べる・話す・種まき・収穫・調合'
+    actionBtn.addEventListener('pointerdown', (e) => {
+      e.preventDefault() // ダブルタップズーム・フォーカス移動・クリック合成を止める
+      pressVirtualAction()
+    })
+    document.body.appendChild(actionBtn)
+
+    // ズームトグル（Zキー相当）。小さな画面では2倍ズームが実質必須のため常設する
+    zoomBtn = document.createElement('button')
+    zoomBtn.id = 'virtual-zoom'
+    zoomBtn.textContent = '🔍'
+    zoomBtn.style.cssText = `
+      position: fixed; right: 26px; bottom: 212px; width: 56px; height: 56px;
+      font-size: 26px; line-height: 1; padding: 0;
+      background: rgba(20,15,10,0.72); color: #ffe9a8;
+      border: 2px solid #8a6a3a; border-radius: 50%;
+      cursor: pointer; z-index: 25; touch-action: manipulation;
+    `
+    zoomBtn.title = 'ズーム切り替え'
+    zoomBtn.addEventListener('pointerdown', (e) => {
+      e.preventDefault()
+      pressZoomToggle()
+    })
+    document.body.appendChild(zoomBtn)
+  }
 
   // 作者紹介カードの器（中身はopenAuthorCardで組む。背景クリックで閉じる）
   authorEl = document.createElement('div')
@@ -258,6 +307,28 @@ export function mountHud() {
     @keyframes promo-glow {
       0%, 100% { box-shadow: 0 0 12px rgba(201,162,74,0.2); }
       50%      { box-shadow: 0 0 24px rgba(201,162,74,0.45); }
+    }
+    /* ── スマホ縦持ちレイアウト（2026-08-06スマホ対応） ──
+       各UIはインラインstyleで組まれているため、ここのメディアクエリで!important上書きする。
+       720px以下＝縦持ちスマホ想定。HUD・メッセージ・会話・ヒントをキャンバス寸法に合わせて縮める */
+    @media (max-width: 720px) {
+      #hud { font-size: 15px !important; line-height: 1.5 !important; padding: 6px 8px !important;
+             max-width: calc(100vw - 108px); }
+      #hud img { height: 22px !important; margin: 0 2px 0 7px !important; }
+      #message { font-size: 15px !important; padding: 8px 12px !important; max-width: 94vw !important; }
+      #talk-hint { font-size: 14px !important; white-space: normal !important; max-width: 82vw;
+                   bottom: 64px !important; text-align: center; }
+      #dialogue { min-height: 132px !important; padding: 10px 12px !important; gap: 10px !important;
+                  bottom: 8px !important; z-index: 26 !important; /* 全画面・作った人ボタン(25)より手前。狭幅では重なって本文が読めない */ }
+      #dialogue img { height: 104px !important; }
+      #dialogue-name { font-size: 15px !important; padding: 1px 10px !important; }
+      #dialogue-text { font-size: 16px !important; line-height: 1.5 !important; }
+      #sound-toggle { top: 6px !important; right: 8px !important; font-size: 20px !important; padding: 6px 9px !important; }
+      #se-toggle { top: 52px !important; right: 8px !important; font-size: 14px !important; }
+      #title-return { top: 98px !important; right: 8px !important; font-size: 12px !important; }
+      #howto-toggle { top: 6px !important; right: 58px !important; font-size: 14px !important; padding: 6px 12px !important; }
+      #author-open { font-size: 12px !important; padding: 5px 10px !important; }
+      #fullscreen-toggle { font-size: 12px !important; padding: 5px 10px !important; bottom: 54px !important; }
     }
   `
   document.head.appendChild(arrowStyle)
@@ -454,13 +525,17 @@ function openAuthorCard() {
 const HOWTO_PAGES = [
   {
     title: '操作方法',
-    // スマホの記述は削除（2026-08-04本人指示）。移動はタップでできるが、種まき・収穫・調合が
-    // Spaceキー専用でスマホでは遊びきれないため、「スマホでも遊べる」と誤解させない
-    body: '矢印キー か WASD で移動。行きたい場所をクリックしてもOK。Spaceキーで調べる・話す。',
+    // 2026-08-06スマホ対応: タッチ端末では🌸ボタン（Space相当）を案内する。
+    // （2026-08-04に一度スマホの記述を削除したが、同06にアクションボタンを実装して解禁）
+    body: isTouchDevice
+      ? '行きたい場所をタップで移動。右下の 🌸ボタン で調べる・話す。🔍ボタンで拡大もできるよ。'
+      : '矢印キー か WASD で移動。行きたい場所をクリックしてもOK。Spaceキーで調べる・話す。',
   },
   {
     title: '種を採りに行こう',
-    body: '里の上にある鳥居をくぐると「種の聖域」へ。キラキラ光る採取スポットの前で Space！',
+    body: isTouchDevice
+      ? '里の上にある鳥居をくぐると「種の聖域」へ。キラキラ光る採取スポットをタップ！'
+      : '里の上にある鳥居をくぐると「種の聖域」へ。キラキラ光る採取スポットの前で Space！',
   },
   {
     title: '種を植えよう',
@@ -1002,11 +1077,10 @@ export function showCompoundMovie(onEnd: () => void) {
     onEnd()
   }
 
-  const width = 456
-  const height = 348
+  // 幅は456px基準だが、スマホの縦持ち（幅375〜430px）でも切れないよう92vwを上限にする（2026-08-06）
   el.innerHTML = `
     <video src="assets/effects/compound_movie.mp4" autoplay playsinline
-      style="width: ${width}px; height: ${height}px; border: 4px solid #c9a24a; border-radius: 4px; background: #000;">
+      style="width: min(456px, 92vw); aspect-ratio: 456 / 348; height: auto; border: 4px solid #c9a24a; border-radius: 4px; background: #000;">
     </video>
   `
   el.querySelector('video')?.addEventListener('ended', finish)
@@ -1283,6 +1357,9 @@ export function setHudVisible(visible: boolean) {
   if (seBtn) seBtn.style.display = display // 効果音ボタンも同様
   if (titleBtn) titleBtn.style.display = display // タイトルに戻るボタンも同様
   if (howtoBtn) howtoBtn.style.display = display // 遊び方ボタンも同様
+  // 🌸アクション・🔍ズームはゲーム中専用（2026-08-06）。タイトル画面ではメニューに重なるため隠す
+  if (actionBtn) actionBtn.style.display = display
+  if (zoomBtn) zoomBtn.style.display = display
   // 「作った人」と「⛶ 全画面」はタイトル画面でも消さない（常時表示の導線・表示切替）。
   // ただしカードは閉じる。開いたままタイトルへ戻ると入力ロックが残り、キーが一切効かなくなる
   if (!visible) closeAuthorCard()
@@ -1416,13 +1493,14 @@ export function showTalkHint(name: string | null, theme: TalkHintTheme = 'spring
   talkHintEl.style.background = t.bg
   talkHintEl.style.borderColor = t.border
   talkHintEl.style.color = t.text
-  talkHintEl.textContent = `💬 ${name}と話す（Space）`
+  talkHintEl.textContent = isTouchDevice ? `💬 ${name}と話す（🌸ボタン）` : `💬 ${name}と話す（Space）`
   talkHintEl.style.display = 'block'
 }
 
 export function showMessage(text: string) {
   if (!messageEl) return
-  messageEl.textContent = text
+  // タッチ端末では「Spaceキー」表記を「🌸ボタン」へ一括読み替え（2026-08-06スマホ対応）
+  messageEl.textContent = adaptActionText(text)
   messageEl.style.opacity = '1'
   window.clearTimeout(messageTimer)
   messageTimer = window.setTimeout(() => {
