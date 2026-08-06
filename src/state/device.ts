@@ -28,6 +28,11 @@ export function consumeVirtualAction(): boolean {
   return v
 }
 
+// 仮想十字キー（2026-08-06実機フィードバック）: タップ移動だけでは細かい位置調整や
+// ステージ間移動がしづらいため、右下に上下左右ボタンを常設する。押している間trueを保ち、
+// GridScene.updateがキーボードのisDownと同じ扱いで毎フレーム読む
+export const dpadState = { up: false, down: false, left: false, right: false }
+
 let zoomTogglePressed = false
 export function pressZoomToggle() {
   zoomTogglePressed = true

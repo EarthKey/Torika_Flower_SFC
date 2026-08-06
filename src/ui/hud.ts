@@ -4,7 +4,7 @@
 import { gameState, RECIPES, KIND_LABELS_RUBY, KIND_STAGE, stageUnlocks, canCompound, recipeVisibleInUi, takeUrabanashiUnlockNotice, type Recipe, type SeedKind } from '../state/gameState'
 import { options, saveOptions, notifyVolumeChanged } from '../state/options'
 import { playSfx } from '../state/sfx'
-import { isTouchDevice, pressVirtualAction, pressZoomToggle, adaptActionText } from '../state/device'
+import { isTouchDevice, pressVirtualAction, pressZoomToggle, adaptActionText, dpadState } from '../state/device'
 
 let hudEl: HTMLDivElement | null = null
 let messageEl: HTMLDivElement | null = null
@@ -20,6 +20,17 @@ let authorEl: HTMLDivElement | null = null
 let fsBtn: HTMLButtonElement | null = null
 let actionBtn: HTMLButtonElement | null = null // 画面上アクションボタン（タッチ端末のみ・2026-08-06）
 let zoomBtn: HTMLButtonElement | null = null
+let dpadEl: HTMLDivElement | null = null // 仮想十字キー（タッチ端末のみ・2026-08-06実機フィードバック）
+let invBtn: HTMLButtonElement | null = null // 🎒荷物ボタン（タッチ端末のみ。所持品HUDの開閉）
+let inventoryOpen = false // タッチ端末での所持品HUDの開閉状態（PCでは常時表示なので不使用）
+let hudShown = false // setHudVisibleの現在値（タイトル=false／ゲーム中=true）
+
+// 🎒荷物の開閉（タッチ端末のみ）。HUDそのものを開閉パネルとして使う
+function setInventoryOpen(open: boolean) {
+  inventoryOpen = open
+  if (invBtn) invBtn.textContent = open ? '🎒 とじる' : '🎒 荷物'
+  if (hudEl) hudEl.style.display = hudShown && open ? '' : 'none'
+}
 
 // 「タイトルに戻る」の実処理はシーン側（main.ts）が登録する。HUDはDOMだけを持ちPhaserを直接触らない
 let returnToTitleHandler: (() => void) | null = null
@@ -215,16 +226,17 @@ export function mountHud() {
   }
   document.body.appendChild(fsBtn)
 
-  // ── 画面上アクションボタン（2026-08-06スマホ対応・タッチ端末のみ） ──────────
-  // Spaceキー相当。種まき・収穫・調合・花占い・話しかけ・会話送りがこれ1つで行える。
-  // pointerdownでフラグを立て、GridScene.update()がキーのJustDownと同じ扱いで消費する
+  // ── タッチ端末用の操作UI（2026-08-06新設、同日実機フィードバックで全面再配置） ──────────
+  // 実機評: 「植える操作が難しい→左下に専用アクションボタン」「移動・ステージ間移動が
+  // しづらい→右下に上下左右ボタン」「薬が増えるとHUDが画面を圧迫→荷物ボタン化」（本人指示）
   if (isTouchDevice) {
+    // 🌸アクション（Space相当）: 左下。種まき・収穫・調合・花占い・話しかけ・会話送り
     actionBtn = document.createElement('button')
     actionBtn.id = 'virtual-action'
     actionBtn.textContent = '🌸'
     actionBtn.style.cssText = `
-      position: fixed; right: 14px; bottom: 118px; width: 80px; height: 80px;
-      font-size: 40px; line-height: 1; padding: 0;
+      position: fixed; left: 18px; bottom: 42px; width: 84px; height: 84px;
+      font-size: 42px; line-height: 1; padding: 0;
       background: rgba(20,15,10,0.72); color: #ffe9a8;
       border: 3px solid #c9a24a; border-radius: 50%;
       cursor: pointer; z-index: 25; touch-action: manipulation;
@@ -237,12 +249,12 @@ export function mountHud() {
     })
     document.body.appendChild(actionBtn)
 
-    // ズームトグル（Zキー相当）。小さな画面では2倍ズームが実質必須のため常設する
+    // ズームトグル（Zキー相当）: 🌸の上
     zoomBtn = document.createElement('button')
     zoomBtn.id = 'virtual-zoom'
     zoomBtn.textContent = '🔍'
     zoomBtn.style.cssText = `
-      position: fixed; right: 26px; bottom: 212px; width: 56px; height: 56px;
+      position: fixed; left: 32px; bottom: 142px; width: 56px; height: 56px;
       font-size: 26px; line-height: 1; padding: 0;
       background: rgba(20,15,10,0.72); color: #ffe9a8;
       border: 2px solid #8a6a3a; border-radius: 50%;
@@ -254,6 +266,74 @@ export function mountHud() {
       pressZoomToggle()
     })
     document.body.appendChild(zoomBtn)
+
+    // 十字キー: 右下。押している間だけ dpadState が立ち、キーボードのisDownと同じ連続移動になる
+    dpadEl = document.createElement('div')
+    dpadEl.id = 'virtual-dpad'
+    dpadEl.style.cssText = `
+      position: fixed; right: 10px; bottom: 24px; width: 168px; height: 168px;
+      display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr);
+      gap: 4px; z-index: 25; touch-action: none;
+    `
+    const dirDefs: { key: keyof typeof dpadState; label: string; col: number; row: number }[] = [
+      { key: 'up', label: '▲', col: 2, row: 1 },
+      { key: 'left', label: '◀', col: 1, row: 2 },
+      { key: 'right', label: '▶', col: 3, row: 2 },
+      { key: 'down', label: '▼', col: 2, row: 3 },
+    ]
+    for (const d of dirDefs) {
+      const b = document.createElement('button')
+      b.textContent = d.label
+      b.style.cssText = `
+        grid-column: ${d.col}; grid-row: ${d.row};
+        font-size: 22px; line-height: 1; padding: 0;
+        background: rgba(20,15,10,0.72); color: #ffe9a8;
+        border: 2px solid #8a6a3a; border-radius: 12px;
+        cursor: pointer; touch-action: none; user-select: none;
+      `
+      const press = (e: Event) => {
+        e.preventDefault()
+        dpadState[d.key] = true
+        b.style.background = 'rgba(201,162,74,0.5)'
+      }
+      const release = () => {
+        dpadState[d.key] = false
+        b.style.background = 'rgba(20,15,10,0.72)'
+      }
+      b.addEventListener('pointerdown', press)
+      b.addEventListener('pointerup', release)
+      b.addEventListener('pointercancel', release)
+      b.addEventListener('pointerleave', release)
+      dpadEl.appendChild(b)
+    }
+    document.body.appendChild(dpadEl)
+
+    // 🎒荷物ボタン: 左上。所持品HUD（種・メダル・薬）は常時表示せず、タップで開閉する
+    // （実機評: 薬が増えるとHUDが画面をかなり圧迫するため）
+    invBtn = document.createElement('button')
+    invBtn.id = 'inv-toggle'
+    invBtn.textContent = '🎒 荷物'
+    invBtn.style.cssText = `
+      position: fixed; top: 6px; left: 8px;
+      font-size: 15px; line-height: 22px; font-family: monospace; font-weight: bold;
+      background: rgba(20,15,10,0.75); color: #f2e6c8;
+      padding: 7px 12px; border: 2px solid #8a6a3a; border-radius: 8px;
+      cursor: pointer; z-index: 25; touch-action: manipulation;
+    `
+    invBtn.addEventListener('click', () => setInventoryOpen(!inventoryOpen))
+    document.body.appendChild(invBtn)
+
+    // 所持品HUDは🎒ボタンの下に開く（インラインのtop:8pxを上書き）
+    hudEl.style.top = '52px'
+
+    // タッチ端末では「作った人」「全画面」を右上のボタン列（音量・SE・タイトルの下）へ移す。
+    // 右下は十字キー、左下は🌸が占有するため（2026-08-06実機フィードバック）
+    authorBtn.style.bottom = ''
+    authorBtn.style.top = '144px'
+    authorBtn.style.right = '8px'
+    fsBtn.style.bottom = ''
+    fsBtn.style.top = '190px'
+    fsBtn.style.right = '8px'
   }
 
   // 作者紹介カードの器（中身はopenAuthorCardで組む。背景クリックで閉じる）
@@ -313,7 +393,7 @@ export function mountHud() {
        720px以下＝縦持ちスマホ想定。HUD・メッセージ・会話・ヒントをキャンバス寸法に合わせて縮める */
     @media (max-width: 720px) {
       #hud { font-size: 15px !important; line-height: 1.5 !important; padding: 6px 8px !important;
-             max-width: calc(100vw - 108px); }
+             max-width: calc(100vw - 16px); }
       #hud img { height: 22px !important; margin: 0 2px 0 7px !important; }
       #message { font-size: 15px !important; padding: 8px 12px !important; max-width: 94vw !important; }
       #talk-hint { font-size: 14px !important; white-space: normal !important; max-width: 82vw;
@@ -327,8 +407,11 @@ export function mountHud() {
       #se-toggle { top: 52px !important; right: 8px !important; font-size: 14px !important; }
       #title-return { top: 98px !important; right: 8px !important; font-size: 12px !important; }
       #howto-toggle { top: 6px !important; right: 58px !important; font-size: 14px !important; padding: 6px 12px !important; }
+      /* 作った人・全画面の位置はタッチ端末ではJS側（mountHudのisTouchDeviceブロック）で
+         右上列へ移すため、ここでは文字サイズのみ調整する。bottomを!importantで上書きすると
+         JSのtop指定と両立して縦に伸びる（2026-08-06に実発生） */
       #author-open { font-size: 12px !important; padding: 5px 10px !important; }
-      #fullscreen-toggle { font-size: 12px !important; padding: 5px 10px !important; bottom: 54px !important; }
+      #fullscreen-toggle { font-size: 12px !important; padding: 5px 10px !important; }
     }
   `
   document.head.appendChild(arrowStyle)
@@ -528,7 +611,7 @@ const HOWTO_PAGES = [
     // 2026-08-06スマホ対応: タッチ端末では🌸ボタン（Space相当）を案内する。
     // （2026-08-04に一度スマホの記述を削除したが、同06にアクションボタンを実装して解禁）
     body: isTouchDevice
-      ? '行きたい場所をタップで移動。右下の 🌸ボタン で調べる・話す。🔍ボタンで拡大もできるよ。'
+      ? '移動は右下の十字キー（行きたい場所をタップでもOK）。左下の 🌸ボタン で調べる・話す。持ち物は左上の 🎒荷物 から見られるよ。'
       : '矢印キー か WASD で移動。行きたい場所をクリックしてもOK。Spaceキーで調べる・話す。',
   },
   {
@@ -1350,16 +1433,21 @@ function refreshSeButton() {
 
 // タイトル画面ではHUDを隠し、ゲーム開始時に表示する
 export function setHudVisible(visible: boolean) {
+  hudShown = visible
   const display = visible ? '' : 'none'
-  if (hudEl) hudEl.style.display = display
+  // タッチ端末の所持品HUDは🎒荷物ボタンで開閉する（ゲーム中でも開くまで隠す。2026-08-06実機評）
+  if (hudEl) hudEl.style.display = isTouchDevice ? (visible && inventoryOpen ? '' : 'none') : display
   if (messageEl) messageEl.style.display = display
   if (soundBtn) soundBtn.style.display = display // 音量ボタンもゲーム中のみ表示（タイトルはオプションで調整）
   if (seBtn) seBtn.style.display = display // 効果音ボタンも同様
   if (titleBtn) titleBtn.style.display = display // タイトルに戻るボタンも同様
   if (howtoBtn) howtoBtn.style.display = display // 遊び方ボタンも同様
-  // 🌸アクション・🔍ズームはゲーム中専用（2026-08-06）。タイトル画面ではメニューに重なるため隠す
+  // 🌸アクション・🔍ズーム・十字キー・🎒荷物はゲーム中専用（2026-08-06）。タイトルでは隠す
   if (actionBtn) actionBtn.style.display = display
   if (zoomBtn) zoomBtn.style.display = display
+  if (dpadEl) dpadEl.style.display = visible ? 'grid' : 'none'
+  if (invBtn) invBtn.style.display = display
+  if (!visible) setInventoryOpen(false) // タイトルへ戻ったら荷物は閉じた状態に戻す
   // 「作った人」と「⛶ 全画面」はタイトル画面でも消さない（常時表示の導線・表示切替）。
   // ただしカードは閉じる。開いたままタイトルへ戻ると入力ロックが残り、キーが一切効かなくなる
   if (!visible) closeAuthorCard()

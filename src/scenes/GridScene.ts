@@ -38,7 +38,7 @@ import {
 import { showMessage, showToast, showGiftPicker, showQuestChoice, showSeasonGateCutin, showFinaleCutin, showFinaleIllust, showTalkHint, updateHud, isCompoundMovieOpen, isGateCutinOpen, isOverlayOpen } from '../ui/hud'
 import { zoomState } from '../state/options'
 import { playSfx } from '../state/sfx'
-import { consumeVirtualAction, consumeZoomToggle } from '../state/device'
+import { consumeVirtualAction, consumeZoomToggle, dpadState } from '../state/device'
 
 // 3エリア共通の土台。Tiled形式のマップJSON（scripts/make-maps.mjs が生成、
 // 将来はTiled GUIで編集）を読み込んで地形を描画し、通行判定つきの
@@ -677,13 +677,14 @@ export abstract class GridScene extends Phaser.Scene {
     }
 
     if (!this.isMoving) {
-      // 押しっぱなしで連続移動（isDown判定）。キー入力があればクリック移動の予約は破棄する
+      // 押しっぱなしで連続移動（isDown判定）。キー入力があればクリック移動の予約は破棄する。
+      // 仮想十字キー（dpadState・タッチ端末）もキーボードと同じ扱い（2026-08-06）
       let dCol = 0
       let dRow = 0
-      if (this.cursors.left.isDown || this.wasd.left.isDown) dCol = -1
-      else if (this.cursors.right.isDown || this.wasd.right.isDown) dCol = 1
-      else if (this.cursors.up.isDown || this.wasd.up.isDown) dRow = -1
-      else if (this.cursors.down.isDown || this.wasd.down.isDown) dRow = 1
+      if (this.cursors.left.isDown || this.wasd.left.isDown || dpadState.left) dCol = -1
+      else if (this.cursors.right.isDown || this.wasd.right.isDown || dpadState.right) dCol = 1
+      else if (this.cursors.up.isDown || this.wasd.up.isDown || dpadState.up) dRow = -1
+      else if (this.cursors.down.isDown || this.wasd.down.isDown || dpadState.down) dRow = 1
 
       if (dCol !== 0 || dRow !== 0) {
         this.path = []
