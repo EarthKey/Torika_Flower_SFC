@@ -268,6 +268,29 @@ export function mountHud() {
   actionBtn.addEventListener('pointerleave', actionUp)
   document.body.appendChild(actionBtn)
 
+  // ── 🔍ズームトグル（Zキー相当）──────────────────────────────
+  // 2026-08-06にタッチ端末用として新設 → 2026-08-10からブラウザでも常設（本人指示）。
+  // 置き場所は端末で変える: タッチ=Aボタンの上（左下・従来どおり）／ブラウザ=「⛶ 全画面」の上（右下）
+  zoomBtn = document.createElement('button')
+  zoomBtn.id = 'virtual-zoom'
+  zoomBtn.textContent = '🔍'
+  const zoomPos = isTouchDevice
+    ? 'left: 32px; bottom: 142px;'
+    : 'right: 12px; bottom: 118px;'
+  zoomBtn.style.cssText = `
+    position: fixed; ${zoomPos} width: 56px; height: 56px;
+    font-size: 26px; line-height: 1; padding: 0;
+    background: rgba(20,15,10,0.72); color: #ffe9a8;
+    border: 2px solid #8a6a3a; border-radius: 50%;
+    cursor: pointer; z-index: 25; touch-action: manipulation;
+  `
+  zoomBtn.title = 'ズーム切り替え'
+  zoomBtn.addEventListener('pointerdown', (e) => {
+    e.preventDefault()
+    pressZoomToggle()
+  })
+  document.body.appendChild(zoomBtn)
+
   // ── タッチ端末専用の操作UI（2026-08-06新設、同日実機フィードバックで全面再配置） ──────────
   // 実機評: 「移動・ステージ間移動がしづらい→右下に上下左右ボタン」
   // 「薬が増えるとHUDが画面を圧迫→荷物ボタン化」（本人指示）
@@ -275,24 +298,6 @@ export function mountHud() {
     // CSS側の分岐用（幅ではなく「タッチ端末かどうか」で当てる。横持ちだと幅844px等になり
     // max-widthのメディアクエリが外れてUIが崩れていたため。2026-08-06実機評）
     document.body.classList.add('touch-ui')
-
-    // ズームトグル（Zキー相当）: 🌸の上
-    zoomBtn = document.createElement('button')
-    zoomBtn.id = 'virtual-zoom'
-    zoomBtn.textContent = '🔍'
-    zoomBtn.style.cssText = `
-      position: fixed; left: 32px; bottom: 142px; width: 56px; height: 56px;
-      font-size: 26px; line-height: 1; padding: 0;
-      background: rgba(20,15,10,0.72); color: #ffe9a8;
-      border: 2px solid #8a6a3a; border-radius: 50%;
-      cursor: pointer; z-index: 25; touch-action: manipulation;
-    `
-    zoomBtn.title = 'ズーム切り替え'
-    zoomBtn.addEventListener('pointerdown', (e) => {
-      e.preventDefault()
-      pressZoomToggle()
-    })
-    document.body.appendChild(zoomBtn)
 
     // 十字キー: 右下。押している間だけ dpadState が立ち、キーボードのisDownと同じ連続移動になる
     dpadEl = document.createElement('div')
