@@ -4,6 +4,7 @@ import { playBgm } from '../state/bgm'
 import { updateHud, showMessage, showToast } from '../ui/hud'
 import { openDialogue } from '../ui/dialogue'
 import { fortuneLines } from '../state/fortuneData'
+import { PLANT_ACTION_HINT } from '../state/device'
 import { plots, plantOn, harvestFrom, growthStageOf, stageUnlocks, unlockWinter, KIND_LABELS, KIND_LABELS_RUBY, type PlotState, type Season } from '../state/gameState'
 import { winterGateConditionMet } from '../state/questData'
 
@@ -167,7 +168,7 @@ export class AutumnHomeScene extends GridScene {
       }
     }
     if (data?.crop) {
-      showMessage(`ここは${KIND_LABELS_RUBY[data.crop]}を植える場所`)
+      showMessage(`ここは${KIND_LABELS_RUBY[data.crop]}を植える場所`, PLANT_ACTION_HINT)
       return
     }
     if (data?.message) showMessage(data.message)

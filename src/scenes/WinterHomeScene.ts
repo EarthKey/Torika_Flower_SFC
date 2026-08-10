@@ -4,6 +4,7 @@ import { playBgm } from '../state/bgm'
 import { updateHud, showMessage, showToast } from '../ui/hud'
 import { openDialogue } from '../ui/dialogue'
 import { fortuneLines } from '../state/fortuneData'
+import { PLANT_ACTION_HINT } from '../state/device'
 import { plots, plantOn, harvestFrom, growthStageOf, KIND_LABELS, KIND_LABELS_RUBY, type PlotState, type Season } from '../state/gameState'
 
 // 冬の里（ステージ4・伊賀エリア）。Stage_Winter.webpをそのまま床に敷く一枚絵背景モード。
@@ -155,7 +156,7 @@ export class WinterHomeScene extends GridScene {
   protected onEnter(spec: CellSpec) {
     const data = spec.data as ({ message?: string } & Partial<PlotState>) | undefined
     if (data?.crop) {
-      showMessage(`ここは${KIND_LABELS_RUBY[data.crop]}を植える場所`)
+      showMessage(`ここは${KIND_LABELS_RUBY[data.crop]}を植える場所`, PLANT_ACTION_HINT)
       return
     }
     if (data?.message) showMessage(data.message)

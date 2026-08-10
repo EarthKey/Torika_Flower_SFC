@@ -18,7 +18,7 @@ let howtoBtn: HTMLButtonElement | null = null
 let authorBtn: HTMLButtonElement | null = null
 let authorEl: HTMLDivElement | null = null
 let fsBtn: HTMLButtonElement | null = null
-let actionBtn: HTMLButtonElement | null = null // 画面上アクションボタン（タッチ端末のみ・2026-08-06）
+let actionBtn: HTMLButtonElement | null = null // 画面上アクションボタン（2026-08-10からブラウザでも常設）
 let zoomBtn: HTMLButtonElement | null = null
 let dpadEl: HTMLDivElement | null = null // 仮想十字キー（タッチ端末のみ・2026-08-06実機フィードバック）
 let invBtn: HTMLButtonElement | null = null // 🎒荷物ボタン（タッチ端末のみ。所持品HUDの開閉）
@@ -226,53 +226,55 @@ export function mountHud() {
   }
   document.body.appendChild(fsBtn)
 
-  // ── タッチ端末用の操作UI（2026-08-06新設、同日実機フィードバックで全面再配置） ──────────
-  // 実機評: 「植える操作が難しい→左下に専用アクションボタン」「移動・ステージ間移動が
-  // しづらい→右下に上下左右ボタン」「薬が増えるとHUDが画面を圧迫→荷物ボタン化」（本人指示）
+  // ── Aボタン（Space相当）: 左下。種まき・収穫・調合・花占い・話しかけ・会話送り ──────────
+  // 2026-08-06にタッチ端末用として新設 → 2026-08-10からブラウザ（マウス操作）でも常設（本人指示。
+  // スマホと同じ見た目・同じ位置。クリックでも押せる決定ボタンにする）。
+  // 見た目はSFC/N64の決定ボタン風（ピンクの立体。2026-08-06実機評:
+  // 🌸アイコンだと「これが決定ボタン」と気づきにくかった）
+  actionBtn = document.createElement('button')
+  actionBtn.id = 'virtual-action'
+  actionBtn.textContent = 'A'
+  const actionRaised = `0 7px 0 #8d2049, 0 10px 16px rgba(0,0,0,0.45),
+    inset 0 3px 7px rgba(255,255,255,0.55), inset 0 -4px 9px rgba(0,0,0,0.28)`
+  const actionPressed = `0 2px 0 #8d2049, 0 3px 7px rgba(0,0,0,0.45),
+    inset 0 2px 5px rgba(0,0,0,0.3)`
+  actionBtn.style.cssText = `
+    position: fixed; left: 18px; bottom: 46px; width: 88px; height: 88px;
+    font-family: Verdana, "Segoe UI", sans-serif; font-size: 40px; font-weight: 900;
+    line-height: 1; padding: 0; letter-spacing: 0;
+    background: radial-gradient(circle at 34% 28%, #ffb3d1 0%, #ff6f9f 46%, #e04a7c 100%);
+    color: #ffffff; text-shadow: 0 2px 4px rgba(120,20,60,0.65);
+    border: 3px solid #ffe3ee; border-radius: 50%;
+    box-shadow: ${actionRaised};
+    cursor: pointer; z-index: 25; touch-action: manipulation;
+    transition: box-shadow 0.05s linear, transform 0.05s linear;
+  `
+  actionBtn.title = '調べる・話す・種まき・収穫・調合'
+  const actionDown = (e: Event) => {
+    e.preventDefault() // ダブルタップズーム・フォーカス移動・クリック合成を止める
+    if (!actionBtn) return
+    actionBtn.style.boxShadow = actionPressed
+    actionBtn.style.transform = 'translateY(5px)'
+    pressVirtualAction()
+  }
+  const actionUp = () => {
+    if (!actionBtn) return
+    actionBtn.style.boxShadow = actionRaised
+    actionBtn.style.transform = ''
+  }
+  actionBtn.addEventListener('pointerdown', actionDown)
+  actionBtn.addEventListener('pointerup', actionUp)
+  actionBtn.addEventListener('pointercancel', actionUp)
+  actionBtn.addEventListener('pointerleave', actionUp)
+  document.body.appendChild(actionBtn)
+
+  // ── タッチ端末専用の操作UI（2026-08-06新設、同日実機フィードバックで全面再配置） ──────────
+  // 実機評: 「移動・ステージ間移動がしづらい→右下に上下左右ボタン」
+  // 「薬が増えるとHUDが画面を圧迫→荷物ボタン化」（本人指示）
   if (isTouchDevice) {
     // CSS側の分岐用（幅ではなく「タッチ端末かどうか」で当てる。横持ちだと幅844px等になり
     // max-widthのメディアクエリが外れてUIが崩れていたため。2026-08-06実機評）
     document.body.classList.add('touch-ui')
-
-    // Aボタン（Space相当）: 左下。種まき・収穫・調合・花占い・話しかけ・会話送り。
-    // 見た目はSFC/N64の決定ボタン風（ピンクの立体。2026-08-06実機評:
-    // 🌸アイコンだと「これが決定ボタン」と気づきにくかった）
-    actionBtn = document.createElement('button')
-    actionBtn.id = 'virtual-action'
-    actionBtn.textContent = 'A'
-    const actionRaised = `0 7px 0 #8d2049, 0 10px 16px rgba(0,0,0,0.45),
-      inset 0 3px 7px rgba(255,255,255,0.55), inset 0 -4px 9px rgba(0,0,0,0.28)`
-    const actionPressed = `0 2px 0 #8d2049, 0 3px 7px rgba(0,0,0,0.45),
-      inset 0 2px 5px rgba(0,0,0,0.3)`
-    actionBtn.style.cssText = `
-      position: fixed; left: 18px; bottom: 46px; width: 88px; height: 88px;
-      font-family: Verdana, "Segoe UI", sans-serif; font-size: 40px; font-weight: 900;
-      line-height: 1; padding: 0; letter-spacing: 0;
-      background: radial-gradient(circle at 34% 28%, #ffb3d1 0%, #ff6f9f 46%, #e04a7c 100%);
-      color: #ffffff; text-shadow: 0 2px 4px rgba(120,20,60,0.65);
-      border: 3px solid #ffe3ee; border-radius: 50%;
-      box-shadow: ${actionRaised};
-      cursor: pointer; z-index: 25; touch-action: manipulation;
-      transition: box-shadow 0.05s linear, transform 0.05s linear;
-    `
-    actionBtn.title = '調べる・話す・種まき・収穫・調合'
-    const actionDown = (e: Event) => {
-      e.preventDefault() // ダブルタップズーム・フォーカス移動・クリック合成を止める
-      if (!actionBtn) return
-      actionBtn.style.boxShadow = actionPressed
-      actionBtn.style.transform = 'translateY(5px)'
-      pressVirtualAction()
-    }
-    const actionUp = () => {
-      if (!actionBtn) return
-      actionBtn.style.boxShadow = actionRaised
-      actionBtn.style.transform = ''
-    }
-    actionBtn.addEventListener('pointerdown', actionDown)
-    actionBtn.addEventListener('pointerup', actionUp)
-    actionBtn.addEventListener('pointercancel', actionUp)
-    actionBtn.addEventListener('pointerleave', actionUp)
-    document.body.appendChild(actionBtn)
 
     // ズームトグル（Zキー相当）: 🌸の上
     zoomBtn = document.createElement('button')
@@ -1648,10 +1650,17 @@ export function showTalkHint(name: string | null, theme: TalkHintTheme = 'spring
   talkHintEl.style.display = 'block'
 }
 
-export function showMessage(text: string) {
+export function showMessage(text: string, subText?: string) {
   if (!messageEl) return
   // タッチ端末では「Spaceキー」表記を「🌸ボタン」へ一括読み替え（2026-08-06スマホ対応）
   messageEl.textContent = adaptActionText(text)
+  // サブ行（2026-08-10新設）: 畑の案内などで、本文の一段下に操作ヒントを小さく出す
+  if (subText) {
+    const sub = document.createElement('div')
+    sub.style.cssText = 'font-size: 20px; margin-top: 6px; color: #ffe9a8;'
+    sub.textContent = subText
+    messageEl.appendChild(sub)
+  }
   messageEl.style.opacity = '1'
   window.clearTimeout(messageTimer)
   messageTimer = window.setTimeout(() => {

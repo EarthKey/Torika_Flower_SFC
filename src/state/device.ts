@@ -29,6 +29,13 @@ export function adaptActionText(text: string): string {
   )
 }
 
+// 畑に乗ったときの操作ヒント（2026-08-10新設・本人指示）。
+// 「ここは〇〇を植える場所」の一段下に出す。ブラウザは画面のAボタンとスペースキーの両方が
+// 効くので併記し、スマホはAボタンだけを案内する
+export const PLANT_ACTION_HINT = isTouchDevice
+  ? 'Aで 植える・収穫'
+  : 'A または スペースで 植える・収穫'
+
 let virtualActionPressed = false
 export function pressVirtualAction() {
   virtualActionPressed = true

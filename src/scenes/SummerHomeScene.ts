@@ -4,6 +4,7 @@ import { playBgm } from '../state/bgm'
 import { updateHud, showMessage, showToast } from '../ui/hud'
 import { openDialogue } from '../ui/dialogue'
 import { fortuneLines } from '../state/fortuneData'
+import { PLANT_ACTION_HINT } from '../state/device'
 import { plots, plantOn, harvestFrom, growthStageOf, stageUnlocks, unlockAutumn, KIND_LABELS, KIND_LABELS_RUBY, type PlotState } from '../state/gameState'
 import { autumnGateConditionMet } from '../state/questData'
 
@@ -171,7 +172,7 @@ export class SummerHomeScene extends GridScene {
     }
     // 畑: 乗った瞬間に案内テキストを出す（春と同じ方式）
     if (data?.crop) {
-      showMessage(`ここは${KIND_LABELS_RUBY[data.crop]}を植える場所`)
+      showMessage(`ここは${KIND_LABELS_RUBY[data.crop]}を植える場所`, PLANT_ACTION_HINT)
       return
     }
     if (data?.message) showMessage(data.message)

@@ -6,6 +6,7 @@ import { plots, plantOn, harvestFrom, growthStageOf, stageUnlocks, unlockSummer,
 import { updateHud, showMessage, showToast, setHowtoGuideArrow } from '../ui/hud'
 import { openDialogue, type DialogueLine } from '../ui/dialogue'
 import { fortuneLines } from '../state/fortuneData'
+import { PLANT_ACTION_HINT } from '../state/device'
 import { summerGateConditionMet } from '../state/questData'
 
 // 春ステージ（自宅・里）V2.3。コンセプト画（stage1.webp）をそのまま床に敷く一枚絵背景モード。
@@ -242,7 +243,7 @@ export class HomeScene extends GridScene {
     }
     // 畑: 乗った瞬間に案内テキストを出す（2026-07-20本人指示。色枠の代わり）
     if (data?.crop) {
-      showMessage(`ここは${KIND_LABELS_RUBY[data.crop]}を植える場所`)
+      showMessage(`ここは${KIND_LABELS_RUBY[data.crop]}を植える場所`, PLANT_ACTION_HINT)
       return
     }
     if (data?.message) showMessage(data.message)
