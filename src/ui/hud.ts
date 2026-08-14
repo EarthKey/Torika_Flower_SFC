@@ -5,6 +5,7 @@ import { gameState, RECIPES, KIND_LABELS_RUBY, KIND_STAGE, stageUnlocks, canComp
 import { options, saveOptions, notifyVolumeChanged } from '../state/options'
 import { playSfx } from '../state/sfx'
 import { isTouchDevice, pressVirtualAction, pressZoomToggle, adaptActionText, dpadState } from '../state/device'
+import { isDialogueOpen } from './dialogue'
 
 let hudEl: HTMLDivElement | null = null
 let messageEl: HTMLDivElement | null = null
@@ -50,7 +51,11 @@ export function mountHud() {
     padding: 12px 18px; border: 2px solid #8a6a3a; border-radius: 4px;
     line-height: 1.6; pointer-events: none;
     transform: scale(0.8); transform-origin: top left;
+    z-index: 29;
   `
+  // 🔴 z-index: 29 は放置ヒント（#idle-hint = 28）より上に出すための指定（2026-08-14追加）。
+  // これが無いとHUDはz-index:auto＝DOM順で描画され、あとから足したオーバーレイに覆われて
+  // 一緒に暗くなる（実際に1回そうなった）。モーダル類は40以上なので上下関係は変わらない
   document.body.appendChild(hudEl)
 
   messageEl = document.createElement('div')
@@ -494,6 +499,8 @@ export function mountHud() {
     const recipe = RECIPES.find((r) => r.id === t.dataset.recipe)
     if (recipe) showKusuriCard(recipe)
   })
+
+  mountIdleHint()
 
   // 解説カード（画面中央のモーダル。どこをクリックしても閉じる）
   cardEl = document.createElement('div')
@@ -1524,6 +1531,7 @@ export function setHudVisible(visible: boolean) {
   if (!visible) closeTitleConfirm() // タイトルへ戻るとき確認ダイアログの取り残しも防ぐ
   if (!visible) setHowtoGuideArrow(false) // タイトルへ戻るとき矢印も消す
   if (!visible) showTalkHint(null) // タイトルへ戻るとき話しかけヒントも消す
+  if (!visible) hideIdleHint() // タイトルへ戻るとき放置ヒントも消す（1秒の監視を待たずに即消す）
   if (!visible) closeKusuriCard() // タイトルへ戻るとき解説カードも閉じる（入力ロックも解除する）
   if (!visible) closeHowto() // 遊び方ビューアも同様（lockの取り残し防止）
   // タイトルへ戻るときは各ウインドウも閉じる。display操作を直書きすると入力ロックが
@@ -1587,6 +1595,124 @@ function visibleKinds(): SeedKind[] {
   return (Object.keys(KIND_STAGE) as SeedKind[]).filter(
     (k) => KIND_STAGE[k] === 'spring' || stageUnlocks[KIND_STAGE[k] as 'summer' | 'autumn' | 'winter'],
   )
+}
+
+// ── 放置ヒント（2026-08-14新設・本人指示）──────────────────────────
+// 背景: 「どの薬を渡せばいいか分からない」という声が出た。原因は2つで、
+//   ① 薬アイコンをクリックすれば解説（症状・構成生薬）が見られること自体を案内していなかった
+//   ② 症状を読んで処方が分かるのは医師・薬剤師・漢方を学んだ人の見え方で、初見の人にはヒントが要る
+// 対策: 通常のプレイ画面で一定時間なにも操作しなかったら画面を暗くし、
+// HUD（種・メダル・薬の枠）だけを明るく残して、画面中央に大きなヒントを出す。
+// z-index 28 = ボタン(25)・会話(20)より上、HUD(30)より下。
+// この重ね順により「暗転中に明るく押せる要素が薬アイコンだけ」になり、視線がそこへ集まる。
+// PCとスマホで待ち時間を変える（2026-08-14本人確定・A案）。
+// PC=2分: 「ゲームを開いたまま別タブ」を前提にしたスクリーンセーバー用途。
+// スマホ=45秒: 用途が違う。詰まった遊び手は1〜2分で黙って閉じるため、90秒に置くと
+// いちばん助けたい「分からずに離脱する人」の大半が一度も見ないまま去る。
+// 早すぎて煩わしくても画面を1回触れば消える＝損失は1タップ。取り逃しは取り返せないので短い側へ倒す。
+const IDLE_HINT_MS = isTouchDevice ? 45_000 : 120_000
+let idleHintEl: HTMLDivElement | null = null
+let idleLastActivity = Date.now()
+let idleHintShown = false
+
+// 「会話以外の普通のプレイ画面」だけを対象にする（本人指定）。
+// 🔴 フォーカス・可視状態は条件に入れない（2026-08-14本人確定）。
+// いったん document.hasFocus() を条件に足したが、本人指示で撤回した。狙いは
+// 「遊んでいる人の手が止まったときの案内」ではなく【スクリーンセーバー】であり、
+//   ・ゲームを開いたまま別タブを見るのは普通の遊び方なので、その間もカウントしてよい
+//   ・公式サイトのiframe埋め込みで、サイトを読んでいる人の視界にヒントが出るのも狙いどおり
+// 経過判定は tick の回数ではなく Date.now() の差分で見ているため、ブラウザが
+// バックグラウンドタブのタイマーを間引いても経過時間そのものは狂わない。
+function idleHintSuppressed(): boolean {
+  return !hudShown || isDialogueOpen() || isOverlayOpen() || isCompoundMovieOpen() || isGateCutinOpen()
+}
+
+function hideIdleHint() {
+  idleHintShown = false
+  if (idleHintEl) idleHintEl.style.display = 'none'
+  if (hudEl) hudEl.classList.remove('idle-lit')
+}
+
+function noteIdleActivity() {
+  idleLastActivity = Date.now()
+  if (idleHintShown) hideIdleHint()
+}
+
+function mountIdleHint() {
+  // 演出（2026-08-14本人指示）: 真っ黒に落とすのではなく、背後をぼかして中央に光をためる。
+  // 書体は明朝体。ゲーム本体のmonospaceのままだと硬く、案内としてきつく見えるため
+  const idleStyle = document.createElement('style')
+  idleStyle.textContent = `
+    @keyframes idle-hint-in { from { opacity: 0 } to { opacity: 1 } }
+    @keyframes idle-glow { 0%,100% { opacity: 0.82 } 50% { opacity: 1 } }
+    #idle-hint { animation: idle-hint-in 900ms ease-out; }
+    #idle-hint .idle-copy { animation: idle-glow 4.2s ease-in-out infinite; }
+    /* 「何が見られるか」の中身だけ朱赤で立てる（2026-08-14本人指示）。
+       暗転＋明朝体の上では純赤(#f00)は沈んで読めないので、鳥居の朱に寄せた明るめの朱赤にする */
+    #idle-hint .idle-em {
+      color: #ff8a6e;
+      text-shadow: 0 0 20px rgba(255,110,72,0.55), 0 2px 14px rgba(0,0,0,0.9);
+    }
+    /* 放置ヒント中はHUDの枠を灯りとして際立たせる（暗転しても「ここは生きている」と分かる） */
+    #hud.idle-lit {
+      border-color: #ffd98a;
+      box-shadow: 0 0 0 2px rgba(255,214,140,0.55), 0 0 34px 10px rgba(255,196,104,0.42);
+      transition: box-shadow 700ms ease, border-color 700ms ease;
+    }
+  `
+  document.head.appendChild(idleStyle)
+
+  idleHintEl = document.createElement('div')
+  idleHintEl.id = 'idle-hint'
+  idleHintEl.style.cssText = `
+    position: fixed; inset: 0; z-index: 28; display: none;
+    align-items: center; justify-content: center; text-align: center;
+    cursor: pointer; padding: 24px;
+    background: radial-gradient(ellipse 72% 52% at 50% 46%,
+      rgba(255,216,146,0.20) 0%, rgba(60,36,10,0.58) 42%, rgba(0,0,0,0.80) 100%);
+    -webkit-backdrop-filter: blur(5px) saturate(0.75);
+    backdrop-filter: blur(5px) saturate(0.75);
+    font-family: "Hiragino Mincho ProN", "Yu Mincho", YuMincho, "MS PMincho", "Noto Serif JP", serif;
+    color: #fff3d4;
+    text-shadow: 0 0 18px rgba(255,198,110,0.55), 0 2px 14px rgba(0,0,0,0.85);
+  `
+  // 本人指定の文字サイズはPCで72px。タッチ端末は固定pxにすると横持ち（高さ390px程度）で
+  // 必ずはみ出すので、幅と高さの小さい方を基準にした可変値にする（2026-08-14）。
+  // vminを使うのは、縦持ち=幅基準・横持ち=高さ基準へ自動で切り替わるため
+  const size = isTouchDevice ? 'clamp(16px, 4.6vmin, 30px)' : '72px'
+  const subSize = isTouchDevice ? 'clamp(11px, 2.6vmin, 15px)' : '22px'
+  // 🔴 タッチ端末ではHUDが「🎒荷物」を開くまで非表示（2026-08-06の実機評で開閉式にしたため）。
+  // 「左上の薬:の並び」と案内してもそこには何も無いので、端末で導線を出し分ける
+  const where = isTouchDevice
+    ? '左上の「🎒 荷物」を開くと並んでいます（どこかを押すと戻ります）'
+    : '左上の「薬:」の並びです（どこかをクリックすると戻ります）'
+  // 明朝体は太字にすると潰れるので、太らせず字間で見せる（柔らかさ優先・本人指示）
+  idleHintEl.innerHTML = `
+    <div class="idle-copy">
+      <div style="font-size:${size}; line-height:1.6; font-weight:400; letter-spacing:0.06em;">
+        ${adaptActionText('お薬のアイコンをクリックすると<br><span class="idle-em">どんな症状の薬か、何でできているか</span>が見られます')}
+      </div>
+      <div style="font-size:${subSize}; margin-top:${isTouchDevice ? '3vmin' : '34px'}; letter-spacing:0.08em;
+                  color:#f6e4bd; opacity:0.85;">
+        ${where}
+      </div>
+    </div>
+  `
+  document.body.appendChild(idleHintEl)
+
+  // 入力の検知はwindow側でまとめて拾う（シーンごとに仕込むと季節シーンで取りこぼす）。
+  // pointermoveは入れない——カーソルが少し動いただけでヒントが消えてしまうため
+  for (const ev of ['keydown', 'pointerdown', 'wheel', 'touchstart'] as const) {
+    window.addEventListener(ev, noteIdleActivity, { passive: true })
+  }
+  window.setInterval(() => {
+    if (idleHintSuppressed()) { idleLastActivity = Date.now(); hideIdleHint(); return }
+    if (Date.now() - idleLastActivity >= IDLE_HINT_MS) {
+      idleHintShown = true
+      if (idleHintEl) idleHintEl.style.display = 'flex'
+      if (hudEl) hudEl.classList.add('idle-lit') // 枠を灯りとして光らせる
+    }
+  }, 1000)
 }
 
 export function updateHud() {
