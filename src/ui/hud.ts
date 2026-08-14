@@ -1605,12 +1605,13 @@ function visibleKinds(): SeedKind[] {
 // HUD（種・メダル・薬の枠）だけを明るく残して、画面中央に大きなヒントを出す。
 // z-index 28 = ボタン(25)・会話(20)より上、HUD(30)より下。
 // この重ね順により「暗転中に明るく押せる要素が薬アイコンだけ」になり、視線がそこへ集まる。
-// PCとスマホで待ち時間を変える（2026-08-14本人確定・A案）。
+// PCとスマホで待ち時間を変える（2026-08-14本人確定）。
 // PC=2分: 「ゲームを開いたまま別タブ」を前提にしたスクリーンセーバー用途。
-// スマホ=45秒: 用途が違う。詰まった遊び手は1〜2分で黙って閉じるため、90秒に置くと
+// スマホ=30秒: 用途が違う。詰まった遊び手は1〜2分で黙って閉じるため、長く置くと
 // いちばん助けたい「分からずに離脱する人」の大半が一度も見ないまま去る。
 // 早すぎて煩わしくても画面を1回触れば消える＝損失は1タップ。取り逃しは取り返せないので短い側へ倒す。
-const IDLE_HINT_MS = isTouchDevice ? 45_000 : 120_000
+// （当初45秒で実装 → 同日、実機を触った本人の判断で30秒へ短縮）
+const IDLE_HINT_MS = isTouchDevice ? 30_000 : 120_000
 let idleHintEl: HTMLDivElement | null = null
 let idleLastActivity = Date.now()
 let idleHintShown = false
@@ -1682,15 +1683,18 @@ function mountIdleHint() {
   const size = isTouchDevice ? 'clamp(16px, 4.6vmin, 30px)' : '72px'
   const subSize = isTouchDevice ? 'clamp(11px, 2.6vmin, 15px)' : '22px'
   // 🔴 タッチ端末ではHUDが「🎒荷物」を開くまで非表示（2026-08-06の実機評で開閉式にしたため）。
-  // 「左上の薬:の並び」と案内してもそこには何も無いので、端末で導線を出し分ける
+  // 画面上に薬アイコンが出ていないので、本文からして「荷物をひらく」を起点にする（2026-08-14本人指示）
+  const lead = isTouchDevice
+    ? '「🎒 荷物」をひらいて<br>お薬のアイコンをクリックすると'
+    : 'お薬のアイコンをクリックすると'
   const where = isTouchDevice
-    ? '左上の「🎒 荷物」を開くと並んでいます（どこかを押すと戻ります）'
+    ? '荷物は画面の左上にあります（どこかを押すと戻ります）'
     : '左上の「薬:」の並びです（どこかをクリックすると戻ります）'
   // 明朝体は太字にすると潰れるので、太らせず字間で見せる（柔らかさ優先・本人指示）
   idleHintEl.innerHTML = `
     <div class="idle-copy">
       <div style="font-size:${size}; line-height:1.6; font-weight:400; letter-spacing:0.06em;">
-        ${adaptActionText('お薬のアイコンをクリックすると<br><span class="idle-em">どんな症状の薬か、何でできているか</span>が見られます')}
+        ${adaptActionText(`${lead}<br><span class="idle-em">どんな症状の薬か、何でできているか</span>が見られます`)}
       </div>
       <div style="font-size:${subSize}; margin-top:${isTouchDevice ? '3vmin' : '34px'}; letter-spacing:0.08em;
                   color:#f6e4bd; opacity:0.85;">
