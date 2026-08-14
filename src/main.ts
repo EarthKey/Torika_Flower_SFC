@@ -84,3 +84,27 @@ const applyVolume = () => {
 }
 applyVolume()
 window.addEventListener('torikka-volume-changed', applyVolume)
+
+// ── 表示領域の変化にゲーム画面を追随させる（2026-08-14・本人の実機評で追加）─────────
+// 症状: スマホでURLバーを出すと、ゲーム画面の上が見切れた。
+// 原因: bodyは 100dvh なのでCSS側の高さはURLバーの出入りで変わるが、
+//       そのときブラウザが window の resize を発火しないことがある（特にiOS Safari）。
+//       Phaser.Scale.FIT は resize を受けて測り直す仕組みなので、実測値が古いまま残り、
+//       canvas が実際の表示領域より大きいまま中央寄せされて上下がはみ出す。
+// 対処: visualViewport（実際に見えている領域）の変化を拾って scale.refresh() を呼び、測り直させる。
+//       スクロール中に毎回走らせると重いので requestAnimationFrame で1フレームに1回へ間引く。
+let refreshQueued = false
+const refreshScale = () => {
+  if (refreshQueued) return
+  refreshQueued = true
+  requestAnimationFrame(() => {
+    refreshQueued = false
+    game.scale.refresh()
+  })
+}
+const vv = window.visualViewport
+if (vv) {
+  vv.addEventListener('resize', refreshScale)
+  vv.addEventListener('scroll', refreshScale) // URLバーの出入りはscroll側で来ることがある
+}
+window.addEventListener('orientationchange', () => setTimeout(refreshScale, 200)) // 回転は確定まで待つ

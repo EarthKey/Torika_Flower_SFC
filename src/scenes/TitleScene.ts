@@ -89,13 +89,25 @@ export class TitleScene extends Phaser.Scene {
   private buildDom() {
     this.root = document.createElement('div')
     this.root.id = 'title-ui'
+    // 🔴 高さは inset:0 ではなく dvh で取る（2026-08-14・本人の実機評で修正）。
+    // 症状: スマホでURLバーを出すと、スロット選択画面（3枠ぶん縦に長い）の上が見切れた。
+    // 原因: inset:0 の高さは【レイアウトビューポート】基準でURLバーが出ても縮まない。
+    //       そのうえ下寄せ（flex-end）なので、あふれたぶんが上へ突き抜けて切れる。
+    //       Phaser側の scale.refresh() はcanvasにしか効かず、このDOMには無関係だった。
+    // 対処: 100dvh（URLバーの出入りに追随する動的ビューポート・未対応ブラウザ用に100vhを先に書く）
+    //       ＋ overflow-y:auto で、それでも入らないときはスクロールで届くようにする。
+    //       下寄せは align-items ではなく panel 側の margin-top:auto で作る
+    //       （flex-end + overflow は、あふれた先頭がスクロールしても掴めなくなるため）。
     this.root.style.cssText = `
-      position: fixed; inset: 0; display: flex;
-      align-items: flex-end; justify-content: center;
-      padding-bottom: 7vh; pointer-events: none; z-index: 15;
+      position: fixed; top: 0; left: 0; width: 100%;
+      height: 100vh; height: 100dvh;
+      display: flex; align-items: flex-start; justify-content: center;
+      padding: 2dvh 0 7dvh; box-sizing: border-box;
+      overflow-y: auto; -webkit-overflow-scrolling: touch;
+      pointer-events: none; z-index: 15;
     `
     this.panel = document.createElement('div')
-    this.panel.style.cssText = PANEL_STYLE + 'pointer-events: auto;'
+    this.panel.style.cssText = PANEL_STYLE + 'pointer-events: auto; margin-top: auto;'
     this.root.appendChild(this.panel)
     document.body.appendChild(this.root)
   }
