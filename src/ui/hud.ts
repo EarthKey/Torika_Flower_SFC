@@ -503,6 +503,12 @@ export function mountHud() {
 
   mountIdleHint()
 
+  // 枠の幅が変わったらHUDの縮尺を測り直す（URLバーの出入り・回転・ウィンドウ変形）
+  const refit = () => fitHud()
+  window.addEventListener('resize', refit)
+  window.visualViewport?.addEventListener('resize', refit)
+  window.addEventListener('orientationchange', () => setTimeout(refit, 200))
+
   // 解説カード（画面中央のモーダル。どこをクリックしても閉じる）
   cardEl = document.createElement('div')
   cardEl.id = 'kusuri-card'
@@ -1585,16 +1591,49 @@ export function showToast(text: string, iconSrc?: string) {
 // 原因: 「アイコン＋数字」を素で並べていたため、桁数ぶんセル幅が伸びて総幅が可変だった。
 // 対策: 1項目を固定幅のセルにし、数字は右寄せの固定幅ブロックへ入れる。
 //       HUD全体を nowrap にして、桁数に関係なく必ず3行で収まるようにする。
-const HUD_CELL_W = 86 // 1項目（アイコン＋数字）の固定幅。総幅が canvas 960px に収まる上限から逆算
-const HUD_NUM_W = 42 // 数字だけの固定幅（3桁まで右寄せで収まる）
+// 薬の行は本人指示で現行サイズ据え置き（2026-08-24）。種・メダルの行だけ小さくして総幅を詰める
+const HUD_CELL_W = 86 // 薬1項目の固定幅（据え置き）
+const HUD_NUM_W = 42 // 薬の数字の固定幅（3桁まで右寄せで収まる）
+const HUD_SMALL_CELL_W = 76 // 種・メダル1項目の固定幅（縮小版）
+const HUD_SMALL_NUM_W = 38 // 種・メダルの数字の固定幅（3桁まで収まる）
 const HUD_LABEL_W = 104 // 「種:」「メダル:」「薬:」の固定幅。3行の左端を揃える
 const ICON_STYLE = 'height:40px;vertical-align:middle;image-rendering:pixelated;margin:0 2px 0 4px;'
+const SMALL_ICON_STYLE = 'height:32px;vertical-align:middle;image-rendering:pixelated;margin:0 2px 0 4px;'
 const NUM_STYLE = `display:inline-block;width:${HUD_NUM_W}px;text-align:right;font-size:24px;font-variant-numeric:tabular-nums;vertical-align:middle;`
+const SMALL_NUM_STYLE = `display:inline-block;width:${HUD_SMALL_NUM_W}px;text-align:right;font-size:20px;font-variant-numeric:tabular-nums;vertical-align:middle;`
 const CELL_STYLE = `display:inline-block;width:${HUD_CELL_W}px;white-space:nowrap;vertical-align:middle;`
+const SMALL_CELL_STYLE = `display:inline-block;width:${HUD_SMALL_CELL_W}px;white-space:nowrap;vertical-align:middle;`
 const LABEL_STYLE = `display:inline-block;width:${HUD_LABEL_W}px;vertical-align:middle;`
 
 function icon(src: string): string {
   return `<img src="${src}" style="${ICON_STYLE}">`
+}
+
+function smallIcon(src: string): string {
+  return `<img src="${src}" style="${SMALL_ICON_STYLE}">`
+}
+
+// 種・メダル用の縮小セル
+function smallCell(iconHtml: string, text: string | number): string {
+  return `<span class="hud-cell hud-cell-s" style="${SMALL_CELL_STYLE}">${iconHtml}<span class="hud-num" style="${SMALL_NUM_STYLE}">${text}</span></span>`
+}
+
+// 🔴 埋め込み枠（iframe）や狭いウィンドウでは、HUDが右上のボタン群（遊び方・SE・タイトル）へ
+// ぶつかる。canvas幅960pxを前提に固定scaleを置くと、枠がそれより狭いときに必ず重なるため、
+// 実際に使える幅を測って縮尺を決める（2026-08-24・本人指摘で追加）。
+function fitHud() {
+  if (!hudEl || hudEl.style.display === 'none') return
+  const natural = hudEl.offsetWidth // transformの影響を受けないレイアウト幅
+  if (!natural) return
+  let limit = window.innerWidth
+  for (const el of [soundBtn, seBtn, titleBtn, howtoBtn, document.getElementById('touch-topbar')]) {
+    if (!el) continue
+    const r = (el as HTMLElement).getBoundingClientRect()
+    if (r.width > 0 && r.top < 200) limit = Math.min(limit, r.left)
+  }
+  const available = Math.max(120, limit - 8 /* left */ - 12 /* 余白 */)
+  const scale = Math.max(0.35, Math.min(0.8, available / natural))
+  hudEl.style.transform = `scale(${scale})`
 }
 
 // アイコン＋数字を1つの固定幅セルにまとめる。桁数が変わっても幅は不変
@@ -1748,8 +1787,8 @@ export function updateHud() {
   }
   const s = gameState
   const kinds = visibleKinds()
-  const seedRow = kinds.map((k) => cell(icon(`assets/items/seed_bag_${k}.png`), s.seeds[k])).join('')
-  const medalRow = kinds.map((k) => cell(icon(`assets/items/medal_${k}.png`), s.medals[k])).join('')
+  const seedRow = kinds.map((k) => smallCell(smallIcon(`assets/items/seed_bag_${k}.png`), s.seeds[k])).join('')
+  const medalRow = kinds.map((k) => smallCell(smallIcon(`assets/items/medal_${k}.png`), s.medals[k])).join('')
   // 薬はアイコンのみ（§9-9）。一度でも調合したことがあればクリックで解説カード（所持数0でも図鑑として残す・2026-07-21〜）、
   // 未調合=グレーの「?」（収集要素）。所持数の増減はkusuriCountsだが、表示の可否はkusuriEverObtainedで判定する。
   // 未到達の季節の処方は「?」枠ごと出さない（2026-07-27修正。種・メダル欄と同じく到達に応じて伸びる）
@@ -1763,6 +1802,7 @@ export function updateHud() {
     `<div><span style="${LABEL_STYLE}">種:</span>${seedRow}</div>` +
     `<div><span style="${LABEL_STYLE}">メダル:</span>${medalRow}</div>` +
     `<div><span style="${LABEL_STYLE}">薬:</span>${kusuriRow}</div>`
+  fitHud()
 }
 
 // 話しかけヒント（2026-08-03本人指示）: NPCの隣のマスに来たら「〇〇と話す（Space）」を
