@@ -50,6 +50,7 @@ export function mountHud() {
     background: rgba(20,15,10,0.75); color: #f2e6c8;
     padding: 12px 18px; border: 2px solid #8a6a3a; border-radius: 4px;
     line-height: 1.6; pointer-events: none;
+    white-space: nowrap;
     transform: scale(0.8); transform-origin: top left;
     z-index: 29;
   `
@@ -1579,10 +1580,26 @@ export function showToast(text: string, iconSrc?: string) {
   }, 1800)
 }
 
-const ICON_STYLE = 'height:40px;vertical-align:middle;image-rendering:pixelated;margin:0 4px 0 12px;'
+// ── HUDの桁ズレ対策（2026-08-24・本人指示）────────────────────────────
+// 症状: メダルが2桁になると1行に収まらず折り返し、行数と行間が変わって見た目が崩れる。
+// 原因: 「アイコン＋数字」を素で並べていたため、桁数ぶんセル幅が伸びて総幅が可変だった。
+// 対策: 1項目を固定幅のセルにし、数字は右寄せの固定幅ブロックへ入れる。
+//       HUD全体を nowrap にして、桁数に関係なく必ず3行で収まるようにする。
+const HUD_CELL_W = 86 // 1項目（アイコン＋数字）の固定幅。総幅が canvas 960px に収まる上限から逆算
+const HUD_NUM_W = 42 // 数字だけの固定幅（3桁まで右寄せで収まる）
+const HUD_LABEL_W = 104 // 「種:」「メダル:」「薬:」の固定幅。3行の左端を揃える
+const ICON_STYLE = 'height:40px;vertical-align:middle;image-rendering:pixelated;margin:0 2px 0 4px;'
+const NUM_STYLE = `display:inline-block;width:${HUD_NUM_W}px;text-align:right;font-size:24px;font-variant-numeric:tabular-nums;vertical-align:middle;`
+const CELL_STYLE = `display:inline-block;width:${HUD_CELL_W}px;white-space:nowrap;vertical-align:middle;`
+const LABEL_STYLE = `display:inline-block;width:${HUD_LABEL_W}px;vertical-align:middle;`
 
 function icon(src: string): string {
   return `<img src="${src}" style="${ICON_STYLE}">`
+}
+
+// アイコン＋数字を1つの固定幅セルにまとめる。桁数が変わっても幅は不変
+function cell(iconHtml: string, text: string | number): string {
+  return `<span class="hud-cell" style="${CELL_STYLE}">${iconHtml}<span class="hud-num" style="${NUM_STYLE}">${text}</span></span>`
 }
 
 // HUDに出す種類は「到達済みステージぶんだけ」。春は常時、夏は季節の門が開いてから
@@ -1731,22 +1748,21 @@ export function updateHud() {
   }
   const s = gameState
   const kinds = visibleKinds()
-  const seedRow = kinds.map((k) => `${icon(`assets/items/seed_bag_${k}.png`)}${s.seeds[k]}`).join('')
-  const medalRow = kinds.map((k) => `${icon(`assets/items/medal_${k}.png`)}${s.medals[k]}`).join('')
+  const seedRow = kinds.map((k) => cell(icon(`assets/items/seed_bag_${k}.png`), s.seeds[k])).join('')
+  const medalRow = kinds.map((k) => cell(icon(`assets/items/medal_${k}.png`), s.medals[k])).join('')
   // 薬はアイコンのみ（§9-9）。一度でも調合したことがあればクリックで解説カード（所持数0でも図鑑として残す・2026-07-21〜）、
   // 未調合=グレーの「?」（収集要素）。所持数の増減はkusuriCountsだが、表示の可否はkusuriEverObtainedで判定する。
   // 未到達の季節の処方は「?」枠ごと出さない（2026-07-27修正。種・メダル欄と同じく到達に応じて伸びる）
   const kusuriRow = RECIPES.filter(recipeVisibleInUi).map((r) => {
     const count = s.kusuriCounts[r.id] ?? 0
     return s.kusuriEverObtained[r.id]
-      ? `<img src="${r.icon}" data-recipe="${r.id}" title="クリックで解説" style="${ICON_STYLE}pointer-events:auto;cursor:pointer;">${count}`
-      : `<img src="assets/items/kusuri/kusuri_unknown.png" style="${ICON_STYLE}opacity:0.55;">?`
+      ? cell(`<img src="${r.icon}" data-recipe="${r.id}" title="クリックで解説" style="${ICON_STYLE}pointer-events:auto;cursor:pointer;">`, count)
+      : cell(`<img src="assets/items/kusuri/kusuri_unknown.png" style="${ICON_STYLE}opacity:0.55;">`, '?')
   }).join('')
-  hudEl.innerHTML = `
-    種:${seedRow}<br>
-    メダル:${medalRow}<br>
-    薬:${kusuriRow}
-  `
+  hudEl.innerHTML =
+    `<div><span style="${LABEL_STYLE}">種:</span>${seedRow}</div>` +
+    `<div><span style="${LABEL_STYLE}">メダル:</span>${medalRow}</div>` +
+    `<div><span style="${LABEL_STYLE}">薬:</span>${kusuriRow}</div>`
 }
 
 // 話しかけヒント（2026-08-03本人指示）: NPCの隣のマスに来たら「〇〇と話す（Space）」を
