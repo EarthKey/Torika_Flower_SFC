@@ -3,8 +3,18 @@
 // hud.ts が置く画面上ボタンの押下をここのフラグで受け、GridScene.update() が
 // Phaser.Input.Keyboard.JustDown と同じタイミングで消費する（ポーリング方式。
 // イベントリスナー方式だとシーン再入場のたびに解除漏れが起きるため採らない）
-export const isTouchDevice =
-  window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0
+// 🔴 2026-09-01: **`navigator.maxTouchPoints > 0` で判定してはいけない**。
+// Windowsのブラウザは、タッチパネルの無いデスクトップでもデジタイザ等が登録されているだけで
+// maxTouchPoints に 10 を返す（実測10・pointer:coarse は false）。そのため
+// **PCでも isTouchDevice が true になり、十字キー・荷物ボタン化・15秒の放置ヒント・
+// 「十字キー／タップ」表記といったスマホ用UIがPCへ出ていた**（2026-08-06〜09-01）。
+// 公式サイト側の同じ誤判定でゲーム埋め込み自体が消えていたため、26日間表面化しなかった。
+//
+// 判定は `(hover: none) and (pointer: coarse)` の1本にする。
+// 「マウスが無く、指が主ポインタ」＝本物のスマホ・タブレットだけが true になり、
+// タッチ対応PCは false、横持ちスマホは true のまま（4環境で実測確認済み）。
+// 判定文は公式サイト側 index.html のタッチ判定と必ず同じものを使う。
+export const isTouchDevice = window.matchMedia('(hover: none) and (pointer: coarse)').matches
 
 // 案内文の出し分け用。キーボード前提の「Spaceキー」をタッチ端末では「Aボタン」と読み替える
 // （2026-08-06: 🌸アイコンだと決定ボタンだと気づきにくいという実機評を受け、SFC/N64風の
