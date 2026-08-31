@@ -579,8 +579,10 @@ const AUTHOR_LINKS: AuthorLink[] = [
   {
     icon: '🌐',
     label: 'ポートフォリオ',
-    sub: 'earthkey-portfolio.vercel.app ／ 作ったものの一覧',
-    url: 'https://earthkey-portfolio.vercel.app/',
+    // 2026-09-01: 独自ドメイン earthkey.me へ差し替え（本人指示）。
+    // 作者リンク・プロフィール導線はこのURLが正。公式サイト側の同じリンクと揃えてある
+    sub: 'earthkey.me ／ 作ったものの一覧',
+    url: 'https://earthkey.me/',
   },
   {
     icon: '📖',
