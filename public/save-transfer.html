@@ -1,0 +1,8 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><link rel="icon" href="/favicon.svg"><title>セーブの引っ越し | トリッカフラワー</title><link rel="stylesheet" href="./save-transfer.css"></head>
+<body><main><h1>セーブの引っ越し</h1><p>3つのスロットと設定を、JSONファイルで持ち運べます。ファイルの内容はこのブラウザだけで処理し、サーバーに送信しません。</p>
+<p class="notice">旧サイトのセーブは自動では移りません。PCで紹介サイト内から遊んでいた方は、その紹介サイトの「セーブの引っ越し」から書き出してください。スマホ等でゲームを直接開いていた方は、同じブラウザのゲーム画面から書き出してください。</p>
+<section><h2>1. いまのセーブを保存</h2><p>元のセーブはそのまま残ります。端末内のJSONは、移行後に続きを確認できるまで保管してください。</p><p id="current"></p><button id="export" type="button">JSONを書き出す</button></section>
+<section><h2>2. 新しい場所で取り込む</h2><p>JSONを選び、元のスロットと移行先の空きスロットを指定します。既存データがあるスロットには取り込めません。</p><label>書き出したJSON <input id="file" type="file" accept=".json,application/json"></label><div id="import-fields" hidden><label>元のデータ <select id="source"></select></label><label>保存先 <select id="target"></select></label><p id="preview"></p><label><input type="checkbox" id="options"> 設定も取り込む（保存先に設定がない場合のみ）</label><button id="import" type="button">選んだ空きスロットへ取り込む</button></div></section>
+<p id="status" role="status" aria-live="polite"></p><nav><a id="game" href="./">ゲームに戻る</a><a id="new-site" href="https://torika-flower-site.earthkey.workers.dev/?save-transfer=1#play" target="_top">新しい紹介サイトの引っ越し画面へ</a></nav>
+<p class="small">PCの埋め込みと直接プレイでは、ブラウザによって保存場所が分かれます。いつも遊んでいた場所で、データのあるスロットが表示されることを確認してください。ファイルの書き出し・取り込みは、ご本人の操作で行います。</p></main><script type="module" src="./save-transfer.js"></script></body></html>

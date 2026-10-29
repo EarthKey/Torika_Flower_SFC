@@ -200,6 +200,7 @@ export class TitleScene extends Phaser.Scene {
     this.addButton('はじめから', () => this.showSlotSelect('new'))
     this.addButton('つづきから', () => this.showSlotSelect('continue'), { disabled: !hasAnySave })
     this.addButton('オプション', () => this.showOptions())
+    this.addButton('セーブの引っ越し', () => { window.location.assign('./save-transfer.html') })
     // 1点でも解放されるまでは「？？？」のまま、以降は正体を明かして「ギャラリー」表記（設計書§1）
     const galleryLabel = anyGalleryUnlocked(scanGalleryProgress()) ? 'ギャラリー' : '？？？'
     this.addButton(galleryLabel, () => this.showGallery())
