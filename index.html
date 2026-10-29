@@ -78,8 +78,12 @@
       ;(function () {
         var embedded = window.top !== window.self
         var touch = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0
-        if (!embedded && !touch && location.hostname === 'torika-flower-sfc.vercel.app') {
-          location.replace('https://torika-flower-site.vercel.app/#play')
+        var sites = {
+          'torika-flower-sfc.vercel.app': 'https://torika-flower-site.vercel.app/#play',
+          'torika-flower-sfc.earthkey.workers.dev': 'https://torika-flower-site.earthkey.workers.dev/#play'
+        }
+        if (!embedded && !touch && sites[location.hostname]) {
+          location.replace(sites[location.hostname])
         }
       })()
     </script>
