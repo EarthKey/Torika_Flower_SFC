@@ -1,6 +1,7 @@
 import {SLOT_KEYS,LEGACY_KEY,OPTIONS_KEY,exportBackup,parseBackup,saveCandidates,validateSave,importEmptySlot} from './save-transfer-core.js';
 const $ = id => document.getElementById(id);
 if(window.top === window.self){$('new-site').href='https://torika-flower-sfc.earthkey.workers.dev/save-transfer.html';$('new-site').textContent='新しいゲームの引っ越し画面へ';}
+else{const parentSite=location.hostname==='torika-flower-sfc.vercel.app'?'https://torika-flower-site.vercel.app/':'https://torika-flower-site.earthkey.workers.dev/';$('game').href=parentSite+'?save-transfer=0#play';$('game').target='_top';}
 let backup = null;
 const status = text => { $('status').textContent = text; };
 function refresh() {
